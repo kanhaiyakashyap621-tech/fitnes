@@ -1,0 +1,59 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isNumber(value) {
+      return value is number;
+    }
+
+    function validUser(data) {
+      return data.keys().hasOnly([
+        'username',
+        'email',
+        'totalDistance',
+        'totalArea',
+        'totalCaptures',
+        'createdAt'
+      ])
+      && data.username is string
+      && data.email is string
+      && isNumber(data.totalDistance)
+      && isNumber(data.totalArea)
+      && data.totalCaptures is int;
+    }
+
+    function validTerritory(data) {
+      return data.keys().hasOnly([
+        'userId',
+        'username',
+        'coordinates',
+        'area',
+        'distance',
+        'createdAt'
+      ])
+      && data.userId is string
+      && data.username is string
+      && data.coordinates is list
+      && isNumber(data.area)
+      && isNumber(data.distance);
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == userId && validUser(request.resource.data);
+      allow update: if isSignedIn() && request.auth.uid == userId && validUser(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /territories/{territoryId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && validTerritory(request.resource.data);
+      allow update, delete: if false;
+    }
+  }
+}
