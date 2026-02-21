@@ -123,6 +123,8 @@ const LiveRun = () => {
     setSaving(true)
     try {
       const area = polygonAreaMeters2(points)
+      const safeDistance = Number.isFinite(totalDistance) ? totalDistance : 0
+      const safeArea = Number.isFinite(area) ? area : 0
       const center = calculateCentroid(points)
       const payload = {
         userId: user.uid,
@@ -130,8 +132,8 @@ const LiveRun = () => {
         coordinates: points,
         centerLat: center?.lat ?? points[0]?.lat ?? 0,
         centerLng: center?.lng ?? points[0]?.lng ?? 0,
-        area,
-        distance: totalDistance,
+        area: safeArea,
+        distance: safeDistance,
         roomId: profile?.currentRoomId ?? null,
         createdAt: serverTimestamp(),
       }
@@ -141,8 +143,8 @@ const LiveRun = () => {
         const snapshot = await transaction.get(userRef)
         const current = snapshot.exists() ? snapshot.data() : {}
         const nextTotals = {
-          totalArea: (current.totalArea || 0) + area,
-          totalDistance: (current.totalDistance || 0) + totalDistance,
+          totalArea: (current.totalArea || 0) + safeArea,
+          totalDistance: (current.totalDistance || 0) + safeDistance,
           totalCaptures: (current.totalCaptures || 0) + 1,
         }
         transaction.set(

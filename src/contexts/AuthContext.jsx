@@ -28,10 +28,41 @@ export const AuthProvider = ({ children }) => {
   const [room, setRoom] = useState(null)
   const [roomLoading, setRoomLoading] = useState(false)
 
+  const normalizeProfile = async (uid, data) => {
+    const updates = {}
+    if (typeof data.totalDistance !== 'number' || Number.isNaN(data.totalDistance)) {
+      updates.totalDistance = 0
+    }
+    if (typeof data.totalArea !== 'number' || Number.isNaN(data.totalArea)) {
+      updates.totalArea = 0
+    }
+    if (!Number.isInteger(data.totalCaptures) || data.totalCaptures < 0) {
+      updates.totalCaptures = 0
+    }
+    if (!Array.isArray(data.earnedBadges)) {
+      updates.earnedBadges = []
+    }
+    if (!Array.isArray(data.fcmTokens)) {
+      updates.fcmTokens = []
+    }
+    if (!Object.prototype.hasOwnProperty.call(data, 'currentRoomId')) {
+      updates.currentRoomId = null
+    }
+    if (!Object.prototype.hasOwnProperty.call(data, 'createdAt')) {
+      updates.createdAt = serverTimestamp()
+    }
+    if (Object.keys(updates).length) {
+      await setDoc(doc(db, 'users', uid), updates, { merge: true })
+    }
+    return { ...data, ...updates }
+  }
+
   const fetchProfile = async (uid) => {
     const snapshot = await getDoc(doc(db, 'users', uid))
     if (snapshot.exists()) {
-      setProfile(snapshot.data())
+      const data = snapshot.data()
+      const normalized = await normalizeProfile(uid, data)
+      setProfile(normalized)
     } else {
       setProfile(null)
     }
