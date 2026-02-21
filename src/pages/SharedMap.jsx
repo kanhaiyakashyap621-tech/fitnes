@@ -358,7 +358,7 @@ const SharedMap = () => {
         <button
           type="button"
           onClick={() => setIsFullscreen((prev) => !prev)}
-          className="absolute bottom-4 right-4 flex h-12 w-12 items-center justify-center rounded-full border border-neonBlue/40 bg-[#0b1423]/80 text-neonBlue shadow-glow transition hover:border-neonBlue"
+          className="fixed bottom-6 right-6 z-[60] flex h-12 w-12 items-center justify-center rounded-full border border-neonBlue/40 bg-[#0b1423]/85 text-neonBlue shadow-glow transition hover:border-neonBlue"
           aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
         >
           {isFullscreen ? (
