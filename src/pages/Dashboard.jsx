@@ -1,11 +1,31 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import GlassCard from '../components/GlassCard'
+import InstallPrompt from '../components/InstallPrompt'
+import NotificationPrompt from '../components/NotificationPrompt'
 import { formatArea, formatMeters } from '../utils/geo'
 
 const Dashboard = () => {
-  const { profile } = useAuth()
+  const { profile, room, leaveRoom } = useAuth()
   const navigate = useNavigate()
+  const [roomStatus, setRoomStatus] = useState('')
+  const [roomBusy, setRoomBusy] = useState(false)
+  const inRoom = Boolean(profile?.currentRoomId)
+
+  const handleLeaveRoom = async () => {
+    if (!profile?.currentRoomId) return
+    setRoomBusy(true)
+    setRoomStatus('')
+    try {
+      await leaveRoom()
+      setRoomStatus('Left room. You are back in global mode.')
+    } catch (err) {
+      setRoomStatus(err.message || 'Unable to leave room.')
+    } finally {
+      setRoomBusy(false)
+    }
+  }
 
   return (
     <div className="flex flex-1 flex-col gap-6 px-4 pb-28 pt-8">
@@ -38,6 +58,75 @@ const Dashboard = () => {
             {profile?.totalCaptures || 0}
           </p>
         </GlassCard>
+      </div>
+
+      <NotificationPrompt />
+      <InstallPrompt />
+
+      <div className="glass-card rounded-2xl p-5">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.3em] text-white/60">Mode</p>
+            <p className="mt-2 text-xl font-semibold text-white">
+              {inRoom ? 'Room Mode' : 'Global Mode'}
+            </p>
+            <p className="mt-1 text-sm text-white/70">
+              {inRoom
+                ? `Room: ${room?.roomName || 'Private room'}`
+                : 'Compete with runners worldwide.'}
+            </p>
+          </div>
+          <span
+            className={`rounded-full border px-4 py-1 text-[10px] uppercase tracking-[0.3em] ${
+              inRoom ? 'border-neonGreen/40 text-neonGreen' : 'border-neonBlue/40 text-neonBlue'
+            }`}
+          >
+            {inRoom ? 'Room' : 'Global'}
+          </span>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {inRoom ? (
+            <>
+              <button
+                type="button"
+                onClick={() => navigate('/room')}
+                className="rounded-2xl border border-white/10 bg-[#0b1423]/70 px-6 py-3 text-sm font-semibold uppercase tracking-[0.3em] text-white transition hover:border-neonGreen"
+              >
+                Room Dashboard
+              </button>
+              <button
+                type="button"
+                onClick={handleLeaveRoom}
+                disabled={roomBusy}
+                className="rounded-2xl border border-white/10 bg-[#0b1423]/70 px-6 py-3 text-sm font-semibold uppercase tracking-[0.3em] text-white transition hover:border-red-400 disabled:opacity-60"
+              >
+                {roomBusy ? 'Leaving...' : 'Leave Room'}
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => navigate('/room/create')}
+                className="rounded-2xl bg-neonBlue px-6 py-3 text-sm font-semibold uppercase tracking-[0.3em] text-[#0b1423] transition hover:shadow-glow"
+              >
+                Create Room
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/room/join')}
+                className="rounded-2xl border border-white/10 bg-[#0b1423]/70 px-6 py-3 text-sm font-semibold uppercase tracking-[0.3em] text-white transition hover:border-neonBlue"
+              >
+                Join Room
+              </button>
+            </>
+          )}
+        </div>
+        {roomStatus && (
+          <p className="mt-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/70">
+            {roomStatus}
+          </p>
+        )}
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">

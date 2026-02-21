@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { updateProfile } from 'firebase/auth'
 import { doc, updateDoc } from 'firebase/firestore'
 import { useAuth } from '../contexts/AuthContext'
 import { auth, db } from '../firebase'
+import { fetchBadges } from '../utils/badges'
 import { formatArea, formatMeters } from '../utils/geo'
 
 const Profile = () => {
@@ -10,12 +11,29 @@ const Profile = () => {
   const [username, setUsername] = useState(profile?.username || '')
   const [status, setStatus] = useState('')
   const [saving, setSaving] = useState(false)
+  const [badges, setBadges] = useState([])
+
+  const earnedSet = useMemo(() => new Set(profile?.earnedBadges || []), [profile?.earnedBadges])
 
   useEffect(() => {
     if (profile?.username) {
       setUsername(profile.username)
     }
   }, [profile?.username])
+
+  useEffect(() => {
+    let active = true
+    fetchBadges()
+      .then((items) => {
+        if (active) setBadges(items)
+      })
+      .catch(() => {
+        if (active) setBadges([])
+      })
+    return () => {
+      active = false
+    }
+  }, [])
 
   const handleUpdate = async (event) => {
     event.preventDefault()
@@ -104,6 +122,51 @@ const Profile = () => {
           >
             Logout
           </button>
+        </div>
+      </div>
+
+      <div className="glass-card rounded-2xl p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.3em] text-white/60">Badges</p>
+            <p className="mt-2 text-lg font-semibold text-white">Your achievement wall</p>
+          </div>
+          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.2em] text-white/60">
+            {earnedSet.size}/{badges.length || 0} earned
+          </span>
+        </div>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {badges.map((badge) => {
+            const earned = earnedSet.has(badge.id)
+            return (
+              <div
+                key={badge.id}
+                className={`badge-card glass-card rounded-2xl border border-white/10 p-4 transition ${
+                  earned ? 'badge-earned' : 'badge-locked'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="badge-icon">{badge.icon || '🏁'}</div>
+                  <div>
+                    <p className="text-sm font-semibold text-white">{badge.name || 'Badge'}</p>
+                    <p className="mt-1 text-xs text-white/60">
+                      {badge.description || 'Unlock by reaching a Runner milestone.'}
+                    </p>
+                  </div>
+                </div>
+                {!earned && (
+                  <p className="mt-3 text-[11px] uppercase tracking-[0.2em] text-white/40">
+                    Locked
+                  </p>
+                )}
+              </div>
+            )
+          })}
+          {!badges.length && (
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-sm text-white/60">
+              Badges will appear once the badges collection is seeded.
+            </div>
+          )}
         </div>
       </div>
     </div>

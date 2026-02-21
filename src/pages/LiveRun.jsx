@@ -1,9 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { MapContainer, Polygon, Polyline, TileLayer, Tooltip, useMap } from 'react-leaflet'
-import { addDoc, collection, doc, runTransaction, serverTimestamp } from 'firebase/firestore'
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  runTransaction,
+  serverTimestamp,
+  setDoc,
+} from 'firebase/firestore'
 import { useAuth } from '../contexts/AuthContext'
+import { useNotifications } from '../contexts/NotificationContext'
+import { useToast } from '../contexts/ToastContext'
+import LocationLoader from '../components/LocationLoader'
+import UserLocationMarker from '../components/UserLocationMarker'
 import { db } from '../firebase'
+import { useOnlineStatus } from '../hooks/useOnlineStatus'
+import { useUserLocation } from '../hooks/useUserLocation'
 import { colorFromId } from '../utils/colors'
+import { awardBadges, fetchBadges } from '../utils/badges'
 import { formatArea, formatMeters, haversineDistance, polygonAreaMeters2 } from '../utils/geo'
 
 const DEFAULT_CENTER = [40.7128, -74.006]
@@ -18,8 +33,26 @@ const Recenter = ({ position }) => {
   return null
 }
 
+const FlyToUser = ({ position, enabled }) => {
+  const map = useMap()
+  const lastKeyRef = useRef('')
+
+  useEffect(() => {
+    if (!enabled || !position) return
+    const key = `${position.lat.toFixed(5)}:${position.lng.toFixed(5)}`
+    if (key === lastKeyRef.current) return
+    lastKeyRef.current = key
+    map.flyTo([position.lat, position.lng], 16, { animate: true })
+  }, [enabled, map, position])
+
+  return null
+}
+
 const LiveRun = () => {
   const { user, profile, refreshProfile } = useAuth()
+  const { addToast } = useToast()
+  const { showLocalNotification } = useNotifications()
+  const isOnline = useOnlineStatus()
   const [positions, setPositions] = useState([])
   const [distance, setDistance] = useState(0)
   const [timer, setTimer] = useState(0)
@@ -28,12 +61,18 @@ const LiveRun = () => {
   const [error, setError] = useState('')
   const [captured, setCaptured] = useState(null)
   const [saving, setSaving] = useState(false)
+  const { position: userLocation, loading: locating, error: locationError } = useUserLocation({
+    enabled: !isTracking,
+    throttleMs: 3000,
+  })
 
   const watchIdRef = useRef(null)
   const timerRef = useRef(null)
+  const activeRunnerRef = useRef(null)
   const positionsRef = useRef([])
   const distanceRef = useRef(0)
   const capturedRef = useRef(false)
+  const latestPositionRef = useRef(null)
 
   const latestPosition = positions[positions.length - 1]
   const userColor = useMemo(() => colorFromId(user?.uid), [user?.uid])
@@ -47,8 +86,15 @@ const LiveRun = () => {
       clearInterval(timerRef.current)
       timerRef.current = null
     }
+    if (activeRunnerRef.current) {
+      clearInterval(activeRunnerRef.current)
+      activeRunnerRef.current = null
+    }
     setIsTracking(false)
     setStatus('idle')
+    if (user) {
+      deleteDoc(doc(db, 'activeRunners', user.uid)).catch(() => undefined)
+    }
   }
 
   const resetRun = () => {
@@ -74,26 +120,53 @@ const LiveRun = () => {
         coordinates: points,
         area,
         distance: totalDistance,
+        roomId: profile?.currentRoomId ?? null,
         createdAt: serverTimestamp(),
       }
       await addDoc(collection(db, 'territories'), payload)
-      await runTransaction(db, async (transaction) => {
+      const updatedTotals = await runTransaction(db, async (transaction) => {
         const userRef = doc(db, 'users', user.uid)
         const snapshot = await transaction.get(userRef)
         const current = snapshot.exists() ? snapshot.data() : {}
+        const nextTotals = {
+          totalArea: (current.totalArea || 0) + area,
+          totalDistance: (current.totalDistance || 0) + totalDistance,
+          totalCaptures: (current.totalCaptures || 0) + 1,
+        }
         transaction.set(
           userRef,
           {
             username: payload.username,
             email: user.email || current.email || '',
-            totalArea: (current.totalArea || 0) + area,
-            totalDistance: (current.totalDistance || 0) + totalDistance,
-            totalCaptures: (current.totalCaptures || 0) + 1,
+            ...nextTotals,
           },
           { merge: true }
         )
+        return nextTotals
       })
       await refreshProfile()
+      const badges = await fetchBadges()
+      const newlyEarned = await awardBadges({
+        userId: user.uid,
+        badges,
+        stats: updatedTotals,
+        earnedBadges: profile?.earnedBadges || [],
+      })
+      if (newlyEarned.length) {
+        newlyEarned.forEach((badge) => {
+          addToast({
+            title: 'Badge unlocked',
+            message: badge.name || 'Achievement unlocked',
+            icon: badge.icon || '🏆',
+            tone: 'achievement',
+          })
+          showLocalNotification({
+            title: 'Runner badge unlocked',
+            body: badge.name || 'Achievement unlocked',
+          })
+        })
+        await refreshProfile()
+      }
       setCaptured({ ...payload, area, distance: totalDistance })
     } catch (err) {
       setError(err.message || 'Failed to save capture.')
@@ -107,6 +180,7 @@ const LiveRun = () => {
       lat: position.coords.latitude,
       lng: position.coords.longitude,
     }
+    latestPositionRef.current = point
 
     setStatus('tracking')
     setPositions((prev) => {
@@ -133,6 +207,10 @@ const LiveRun = () => {
   }
 
   const startTracking = () => {
+    if (!isOnline) {
+      setError('Live Run is unavailable offline. Reconnect to start tracking.')
+      return
+    }
     if (!navigator.geolocation) {
       setError('Geolocation is not supported on this device.')
       return
@@ -158,6 +236,43 @@ const LiveRun = () => {
     return () => stopTracking()
   }, [])
 
+  useEffect(() => {
+    if (!isOnline && isTracking) {
+      setError('Connection lost. Live Run paused.')
+      stopTracking()
+    }
+  }, [isOnline, isTracking])
+
+  useEffect(() => {
+    if (!isTracking || !user) return undefined
+    if (activeRunnerRef.current) return undefined
+    const syncRunner = () => {
+      if (!latestPositionRef.current) return
+      setDoc(
+        doc(db, 'activeRunners', user.uid),
+        {
+          userId: user.uid,
+          username: profile?.username || user.displayName || 'Runner',
+          lat: latestPositionRef.current.lat,
+          lng: latestPositionRef.current.lng,
+          roomId: profile?.currentRoomId ?? null,
+          lastUpdated: serverTimestamp(),
+        },
+        { merge: true }
+      ).catch(() => undefined)
+    }
+    activeRunnerRef.current = setInterval(() => {
+      syncRunner()
+    }, 5000)
+    syncRunner()
+    return () => {
+      if (activeRunnerRef.current) {
+        clearInterval(activeRunnerRef.current)
+        activeRunnerRef.current = null
+      }
+    }
+  }, [isTracking, profile?.currentRoomId, profile?.username, user])
+
   const formattedTime = useMemo(() => {
     const minutes = Math.floor(timer / 60)
     const seconds = timer % 60
@@ -169,9 +284,7 @@ const LiveRun = () => {
       <div className="space-y-2">
         <p className="text-xs uppercase tracking-[0.3em] text-neonBlue">Live Run</p>
         <h1 className="text-2xl font-semibold text-white">Capture a new territory</h1>
-        <p className="text-sm text-white/70">
-          Start tracking and close a loop within 20 meters to lock in your territory.
-        </p>
+        <p className="text-sm text-white/70">Start tracking to claim new territory in real time.</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -199,9 +312,9 @@ const LiveRun = () => {
         </div>
       </div>
 
-      <div className="h-[55vh] overflow-hidden rounded-3xl border border-white/10 shadow-glow">
+      <div className="relative h-[100vh] overflow-hidden rounded-3xl border border-white/10 shadow-glow">
         <MapContainer
-          center={latestPosition ? [latestPosition.lat, latestPosition.lng] : DEFAULT_CENTER}
+          center={DEFAULT_CENTER}
           zoom={16}
           scrollWheelZoom
         >
@@ -209,7 +322,14 @@ const LiveRun = () => {
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
+          <FlyToUser position={userLocation} enabled={!isTracking && !positions.length} />
           {latestPosition && <Recenter position={[latestPosition.lat, latestPosition.lng]} />}
+          {userLocation && (
+            <UserLocationMarker
+              position={[userLocation.lat, userLocation.lng]}
+              username={profile?.username || user?.displayName || 'You'}
+            />
+          )}
           {positions.length > 1 && (
             <Polyline positions={positions} pathOptions={{ color: userColor, weight: 4 }} />
           )}
@@ -221,7 +341,20 @@ const LiveRun = () => {
             </Polygon>
           )}
         </MapContainer>
+        {locating && <LocationLoader message="Requesting location..." />}
       </div>
+
+      {locationError && (
+        <div className="rounded-2xl border border-neonPink/30 bg-neonPink/10 px-4 py-3 text-sm text-neonPink">
+          {locationError}
+        </div>
+      )}
+
+      {!isOnline && (
+        <div className="rounded-2xl border border-neonPink/30 bg-neonPink/10 px-4 py-3 text-sm text-neonPink">
+          Offline Mode: Live Run is paused until you reconnect.
+        </div>
+      )}
 
       {error && (
         <div className="rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
@@ -254,9 +387,10 @@ const LiveRun = () => {
           <button
             type="button"
             onClick={startTracking}
+            disabled={!isOnline}
             className="rounded-2xl bg-neonGreen px-6 py-4 text-sm font-semibold uppercase tracking-[0.3em] text-[#0b1423] transition hover:shadow-green"
           >
-            Start Tracking
+            {isOnline ? 'Start Tracking' : 'Offline'}
           </button>
         )}
         {isTracking && (

@@ -9,6 +9,51 @@ service cloud.firestore {
       return value is number;
     }
 
+    function isNonNegativeNumber(value) {
+      return isNumber(value) && value >= 0;
+    }
+
+    function isNonNegativeInt(value) {
+      return value is int && value >= 0;
+    }
+
+    function optionalList(data, field, maxSize) {
+      return !data.keys().hasAny([field])
+        || (data[field] is list && data[field].size() <= maxSize);
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userRoomId() {
+      return userDoc().exists() ? userDoc().data.currentRoomId : null;
+    }
+
+    function roomDoc(roomId) {
+      return get(/databases/$(database)/documents/rooms/$(roomId));
+    }
+
+    function roomDocAfter(roomId) {
+      return getAfter(/databases/$(database)/documents/rooms/$(roomId));
+    }
+
+    function roomExists(roomId) {
+      return roomDoc(roomId).exists();
+    }
+
+    function isRoomMember(roomId) {
+      return isSignedIn()
+        && roomExists(roomId)
+        && roomDoc(roomId).data.members.hasAny([request.auth.uid]);
+    }
+
+    function isRoomMemberAfter(roomId) {
+      return isSignedIn()
+        && roomDocAfter(roomId).exists()
+        && roomDocAfter(roomId).data.members.hasAny([request.auth.uid]);
+    }
+
     function validUser(data) {
       return data.keys().hasOnly([
         'username',
@@ -16,13 +61,45 @@ service cloud.firestore {
         'totalDistance',
         'totalArea',
         'totalCaptures',
+        'earnedBadges',
+        'fcmTokens',
+        'currentRoomId',
         'createdAt'
       ])
       && data.username is string
       && data.email is string
-      && isNumber(data.totalDistance)
-      && isNumber(data.totalArea)
-      && data.totalCaptures is int;
+      && isNonNegativeNumber(data.totalDistance)
+      && isNonNegativeNumber(data.totalArea)
+      && isNonNegativeInt(data.totalCaptures)
+      && optionalList(data, 'earnedBadges', 200)
+      && optionalList(data, 'fcmTokens', 20)
+      && (data.currentRoomId == null || (data.currentRoomId is string && isRoomMemberAfter(data.currentRoomId)));
+    }
+
+    function validLatitude(value) {
+      return isNumber(value) && value >= -90 && value <= 90;
+    }
+
+    function validLongitude(value) {
+      return isNumber(value) && value >= -180 && value <= 180;
+    }
+
+    function validActiveRunner(data) {
+      return data.keys().hasOnly([
+        'userId',
+        'username',
+        'lat',
+        'lng',
+        'roomId',
+        'lastUpdated'
+      ])
+      && data.userId == request.auth.uid
+      && data.username is string
+      && validLatitude(data.lat)
+      && validLongitude(data.lng)
+      && (data.roomId == null || data.roomId is string)
+      && data.lastUpdated is timestamp
+      && data.roomId == userRoomId();
     }
 
     function validTerritory(data) {
@@ -32,13 +109,62 @@ service cloud.firestore {
         'coordinates',
         'area',
         'distance',
+        'roomId',
         'createdAt'
       ])
       && data.userId is string
       && data.username is string
       && data.coordinates is list
-      && isNumber(data.area)
-      && isNumber(data.distance);
+      && isNonNegativeNumber(data.area)
+      && isNonNegativeNumber(data.distance)
+      && (data.roomId == null || data.roomId is string);
+    }
+
+    function validRoomCreate(data, roomId) {
+      return data.keys().hasOnly([
+        'roomName',
+        'teamCode',
+        'createdBy',
+        'members',
+        'createdAt'
+      ])
+      && data.roomName is string
+      && data.teamCode is string
+      && data.teamCode == roomId
+      && data.createdBy == request.auth.uid
+      && data.members is list
+      && data.members.hasOnly([request.auth.uid]);
+    }
+
+    function isJoin(before, after) {
+      return !before.hasAny([request.auth.uid])
+        && after.hasAny([request.auth.uid])
+        && after.size() == before.size() + 1
+        && after.hasAll(before);
+    }
+
+    function isLeave(before, after) {
+      return before.hasAny([request.auth.uid])
+        && !after.hasAny([request.auth.uid])
+        && after.size() == before.size() - 1
+        && before.hasAll(after);
+    }
+
+    function validRoomUpdate(data, roomId) {
+      return data.keys().hasOnly([
+        'roomName',
+        'teamCode',
+        'createdBy',
+        'members',
+        'createdAt'
+      ])
+      && data.roomName == resource.data.roomName
+      && data.teamCode == resource.data.teamCode
+      && data.teamCode == roomId
+      && data.createdBy == resource.data.createdBy
+      && data.createdAt == resource.data.createdAt
+      && data.members is list
+      && (isJoin(resource.data.members, data.members) || isLeave(resource.data.members, data.members));
     }
 
     match /users/{userId} {
@@ -48,12 +174,38 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /rooms/{roomId} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow create: if isSignedIn() && validRoomCreate(request.resource.data, roomId);
+      allow update: if isSignedIn() && validRoomUpdate(request.resource.data, roomId);
+      allow delete: if false;
+    }
+
     match /territories/{territoryId} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn()
+        && (resource.data.roomId == null || isRoomMember(resource.data.roomId));
       allow create: if isSignedIn()
         && request.resource.data.userId == request.auth.uid
-        && validTerritory(request.resource.data);
+        && validTerritory(request.resource.data)
+        && (request.resource.data.roomId == null || isRoomMember(request.resource.data.roomId));
       allow update, delete: if false;
+    }
+
+    match /badges/{badgeId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /activeRunners/{runnerId} {
+      allow read: if isSignedIn() && resource.data.roomId == userRoomId();
+      allow create: if isSignedIn()
+        && runnerId == request.auth.uid
+        && validActiveRunner(request.resource.data);
+      allow update: if isSignedIn()
+        && runnerId == request.auth.uid
+        && validActiveRunner(request.resource.data);
+      allow delete: if isSignedIn() && runnerId == request.auth.uid;
     }
   }
 }
