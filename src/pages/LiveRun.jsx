@@ -19,7 +19,14 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus'
 import { useUserLocation } from '../hooks/useUserLocation'
 import { colorFromId } from '../utils/colors'
 import { awardBadges, fetchBadges } from '../utils/badges'
-import { formatArea, formatMeters, haversineDistance, polygonAreaMeters2 } from '../utils/geo'
+import {
+  calculateCentroid,
+  formatArea,
+  formatMeters,
+  formatSpeed,
+  haversineDistance,
+  polygonAreaMeters2,
+} from '../utils/geo'
 
 const DEFAULT_CENTER = [40.7128, -74.006]
 
@@ -114,10 +121,13 @@ const LiveRun = () => {
     setSaving(true)
     try {
       const area = polygonAreaMeters2(points)
+      const center = calculateCentroid(points)
       const payload = {
         userId: user.uid,
         username: profile?.username || user.displayName || 'Runner',
         coordinates: points,
+        centerLat: center?.lat ?? points[0]?.lat ?? 0,
+        centerLng: center?.lng ?? points[0]?.lng ?? 0,
         area,
         distance: totalDistance,
         roomId: profile?.currentRoomId ?? null,
@@ -279,6 +289,8 @@ const LiveRun = () => {
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
   }, [timer])
 
+  const formattedSpeed = useMemo(() => formatSpeed(distance, timer), [distance, timer])
+
   return (
     <div className="flex flex-1 flex-col gap-6 px-4 pb-28 pt-6">
       <div className="space-y-2">
@@ -287,7 +299,7 @@ const LiveRun = () => {
         <p className="text-sm text-white/70">Start tracking to claim new territory in real time.</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <div className="glass-card rounded-2xl p-4">
           <p className="text-xs uppercase tracking-[0.3em] text-white/60">Timer</p>
           <p className="mt-2 text-2xl font-semibold text-neonBlue">{formattedTime}</p>
@@ -295,6 +307,10 @@ const LiveRun = () => {
         <div className="glass-card rounded-2xl p-4">
           <p className="text-xs uppercase tracking-[0.3em] text-white/60">Distance</p>
           <p className="mt-2 text-2xl font-semibold text-neonGreen">{formatMeters(distance)}</p>
+        </div>
+        <div className="glass-card rounded-2xl p-4">
+          <p className="text-xs uppercase tracking-[0.3em] text-white/60">Speed</p>
+          <p className="mt-2 text-2xl font-semibold text-neonBlue">{formattedSpeed}</p>
         </div>
         <div className="glass-card rounded-2xl p-4">
           <p className="text-xs uppercase tracking-[0.3em] text-white/60">Status</p>

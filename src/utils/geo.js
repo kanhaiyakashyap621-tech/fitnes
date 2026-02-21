@@ -35,11 +35,47 @@ export const polygonAreaMeters2 = (points) => {
 }
 
 export const formatMeters = (value) => {
-  if (value < 1000) return `${value.toFixed(0)} m`
   return `${(value / 1000).toFixed(2)} km`
 }
 
 export const formatArea = (value) => {
-  if (value < 1000000) return `${value.toFixed(0)} m²`
   return `${(value / 1000000).toFixed(2)} km²`
+}
+
+export const formatSpeed = (distanceMeters, elapsedSeconds) => {
+  if (!elapsedSeconds) return '0.00 km/h'
+  const km = distanceMeters / 1000
+  const hours = elapsedSeconds / 3600
+  if (!hours) return '0.00 km/h'
+  return `${(km / hours).toFixed(2)} km/h`
+}
+
+export const calculateBoundingBox = (center, radiusMeters) => {
+  const R = 6371000
+  const latRad = toRad(center.lat)
+  const latDelta = (radiusMeters / R) * (180 / Math.PI)
+  const lngDelta = (radiusMeters / (R * Math.cos(latRad))) * (180 / Math.PI)
+
+  return {
+    minLat: center.lat - latDelta,
+    maxLat: center.lat + latDelta,
+    minLng: center.lng - lngDelta,
+    maxLng: center.lng + lngDelta,
+  }
+}
+
+export const calculateCentroid = (points) => {
+  if (!points || !points.length) return null
+  const sum = points.reduce(
+    (acc, point) => {
+      acc.lat += point.lat
+      acc.lng += point.lng
+      return acc
+    },
+    { lat: 0, lng: 0 }
+  )
+  return {
+    lat: sum.lat / points.length,
+    lng: sum.lng / points.length,
+  }
 }

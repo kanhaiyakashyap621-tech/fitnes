@@ -107,6 +107,8 @@ service cloud.firestore {
         'userId',
         'username',
         'coordinates',
+        'centerLat',
+        'centerLng',
         'area',
         'distance',
         'roomId',
@@ -115,6 +117,8 @@ service cloud.firestore {
       && data.userId is string
       && data.username is string
       && data.coordinates is list
+      && validLatitude(data.centerLat)
+      && validLongitude(data.centerLng)
       && isNonNegativeNumber(data.area)
       && isNonNegativeNumber(data.distance)
       && (data.roomId == null || data.roomId is string);
