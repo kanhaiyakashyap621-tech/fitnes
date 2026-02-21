@@ -351,11 +351,45 @@ const LiveRun = () => {
         </div>
       </div>
 
+      <div className="fixed bottom-4 right-4 z-[80]">
+        <div className="flex items-center">
+          <button
+            type="button"
+            onClick={() => setIsFullscreen((prev) => !prev)}
+            className="flex h-12 w-12 items-center justify-center rounded-full border border-neonBlue bg-neonBlue text-[#0b1423] shadow-glow transition hover:scale-[1.03] hover:bg-neonBlue/90"
+            aria-label={isFullscreen ? 'Minimize map' : 'Fullscreen map'}
+            title={isFullscreen ? 'Minimize' : 'Fullscreen'}
+          >
+            {isFullscreen ? (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M9 3H3v6M15 21h6v-6M3 15v6h6M21 9V3h-6"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M9 9H3V3M15 15h6v6M3 21v-6h6M21 3v6h-6"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            )}
+          </button>
+        </div>
+      </div>
+
       <div
         className={`relative overflow-hidden border border-white/10 shadow-glow transition-all duration-300 ${
           isFullscreen
             ? 'fixed inset-0 z-50 h-[100vh] w-full rounded-none'
-            : 'h-[100vh] rounded-3xl'
+            : 'h-[50vh] md:h-[60vh] rounded-3xl'
         }`}
       >
         <MapContainer
@@ -390,34 +424,6 @@ const LiveRun = () => {
           )}
         </MapContainer>
         {locating && <LocationLoader message="Requesting location..." />}
-        <button
-          type="button"
-          onClick={() => setIsFullscreen((prev) => !prev)}
-          className="fixed bottom-6 right-6 z-[60] flex h-12 w-12 items-center justify-center rounded-full border border-neonBlue/40 bg-[#0b1423]/85 text-neonBlue shadow-glow transition hover:border-neonBlue"
-          aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-        >
-          {isFullscreen ? (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M9 3H3v6M15 21h6v-6M3 15v6h6M21 9V3h-6"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          ) : (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M9 9H3V3M15 15h6v6M3 21v-6h6M21 3v6h-6"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          )}
-        </button>
       </div>
 
       {locationError && (

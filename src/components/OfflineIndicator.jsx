@@ -6,7 +6,7 @@ const OfflineIndicator = () => {
   if (isOnline) return null
 
   return (
-    <span className="offline-pill">Offline Mode</span>
+    <span className="offline-pill">offline </span>
   )
 }
 
