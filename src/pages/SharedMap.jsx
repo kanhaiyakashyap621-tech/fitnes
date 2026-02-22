@@ -5,6 +5,7 @@ import L from 'leaflet'
 import { useAuth } from '../contexts/AuthContext'
 import { useNotifications } from '../contexts/NotificationContext'
 import { useToast } from '../contexts/ToastContext'
+import FollowToggle from '../components/FollowToggle'
 import FilterToggle from '../components/FilterToggle'
 import LocationLoader from '../components/LocationLoader'
 import LiveRunnerMarker from '../components/LiveRunnerMarker'
@@ -61,17 +62,17 @@ const FitTerritories = ({ territories }) => {
   return null
 }
 
-const FlyToUser = ({ position, enabled }) => {
+const FollowUser = ({ position, enabled, throttleMs = 3000 }) => {
   const map = useMap()
-  const lastKeyRef = useRef('')
+  const lastFlyRef = useRef(0)
 
   useEffect(() => {
     if (!enabled || !position) return
-    const key = `${position.lat.toFixed(4)}:${position.lng.toFixed(4)}`
-    if (key === lastKeyRef.current) return
-    lastKeyRef.current = key
-    map.flyTo([position.lat, position.lng], 15, { animate: true })
-  }, [enabled, map, position])
+    const now = Date.now()
+    if (now - lastFlyRef.current < throttleMs) return
+    lastFlyRef.current = now
+    map.flyTo([position.lat, position.lng], map.getZoom(), { animate: true })
+  }, [enabled, map, position, throttleMs])
 
   return null
 }
@@ -167,6 +168,7 @@ const SharedMap = () => {
   const [now, setNow] = useState(Date.now())
   const [selectedFilter, setSelectedFilter] = useState('24h')
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [isFollowing, setIsFollowing] = useState(false)
   const mapRef = useRef(null)
   const centerCacheRef = useRef(new Map())
   const legacyCacheRef = useRef(new Map())
@@ -458,12 +460,16 @@ const SharedMap = () => {
       </div>
 
       <div
-        className={`relative overflow-hidden rounded-3xl border border-white/10 shadow-glow transition-all duration-300 ${
+        className={`relative isolate overflow-hidden rounded-3xl border border-white/10 shadow-glow transition-all duration-300 ${
           isFullscreen
             ? 'fixed inset-0 z-50 h-[100vh] w-full'
             : 'h-[60vh]'
         }`}
       >
+        <FollowToggle
+          isFollowing={isFollowing}
+          onToggle={() => setIsFollowing((prev) => !prev)}
+        />
         <MapContainer
           center={DEFAULT_CENTER}
           zoom={5}
@@ -476,7 +482,7 @@ const SharedMap = () => {
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          <FlyToUser position={effectiveLocation} enabled />
+          <FollowUser position={userLocation} enabled={isFollowing && !!userLocation} />
           {hasUserLocation && (
             <UserRadiusLayer position={effectiveLocation} radius={RADIUS_METERS} />
           )}

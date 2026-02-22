@@ -12,6 +12,7 @@ import {
 import { useAuth } from '../contexts/AuthContext'
 import { useNotifications } from '../contexts/NotificationContext'
 import { useToast } from '../contexts/ToastContext'
+import FollowToggle from '../components/FollowToggle'
 import LocationLoader from '../components/LocationLoader'
 import UserLocationMarker from '../components/UserLocationMarker'
 import { db } from '../firebase'
@@ -31,27 +32,17 @@ import {
 const DEFAULT_CENTER = [40.7128, -74.006]
 const AUTO_CAPTURE_ENABLED = false
 
-const Recenter = ({ position }) => {
+const FollowUser = ({ position, enabled, throttleMs = 3000 }) => {
   const map = useMap()
-  useEffect(() => {
-    if (position) {
-      map.setView(position, map.getZoom(), { animate: true })
-    }
-  }, [map, position])
-  return null
-}
-
-const FlyToUser = ({ position, enabled }) => {
-  const map = useMap()
-  const lastKeyRef = useRef('')
+  const lastFlyRef = useRef(0)
 
   useEffect(() => {
     if (!enabled || !position) return
-    const key = `${position.lat.toFixed(5)}:${position.lng.toFixed(5)}`
-    if (key === lastKeyRef.current) return
-    lastKeyRef.current = key
-    map.flyTo([position.lat, position.lng], 16, { animate: true })
-  }, [enabled, map, position])
+    const now = Date.now()
+    if (now - lastFlyRef.current < throttleMs) return
+    lastFlyRef.current = now
+    map.flyTo([position.lat, position.lng], map.getZoom(), { animate: true })
+  }, [enabled, map, position, throttleMs])
 
   return null
 }
@@ -67,6 +58,7 @@ const LiveRun = () => {
   const [isTracking, setIsTracking] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [isFollowing, setIsFollowing] = useState(false)
   const [status, setStatus] = useState('idle')
   const [error, setError] = useState('')
   const [captured, setCaptured] = useState(null)
@@ -88,6 +80,7 @@ const LiveRun = () => {
   const latestPositionRef = useRef(null)
 
   const latestPosition = positions[positions.length - 1]
+  const followPosition = latestPosition || userLocation
   const userColor = useMemo(() => colorFromId(user?.uid), [user?.uid])
 
   const syncDistanceProgress = async () => {
@@ -486,12 +479,16 @@ const LiveRun = () => {
       </div>
 
       <div
-        className={`relative overflow-hidden border border-white/10 shadow-glow transition-all duration-300 ${
+        className={`relative isolate overflow-hidden border border-white/10 shadow-glow transition-all duration-300 ${
           isFullscreen
             ? 'fixed inset-0 z-50 h-[100vh] w-full rounded-none'
             : 'h-[50vh] md:h-[60vh] rounded-3xl'
         }`}
       >
+        <FollowToggle
+          isFollowing={isFollowing}
+          onToggle={() => setIsFollowing((prev) => !prev)}
+        />
         <MapContainer
           center={DEFAULT_CENTER}
           zoom={16}
@@ -504,8 +501,7 @@ const LiveRun = () => {
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          <FlyToUser position={userLocation} enabled={!isTracking && !positions.length} />
-          {latestPosition && <Recenter position={[latestPosition.lat, latestPosition.lng]} />}
+          <FollowUser position={followPosition} enabled={isFollowing && !!followPosition} />
           {userLocation && (
             <UserLocationMarker
               position={[userLocation.lat, userLocation.lng]}
