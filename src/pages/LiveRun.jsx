@@ -21,7 +21,7 @@ import { colorFromId } from '../utils/colors'
 import { awardBadges, fetchBadges } from '../utils/badges'
 import {
   calculateCentroid,
-  formatArea,
+  formatAreaMeters,
   formatMeters,
   formatSpeed,
   haversineDistance,
@@ -64,6 +64,7 @@ const LiveRun = () => {
   const [distance, setDistance] = useState(0)
   const [timer, setTimer] = useState(0)
   const [isTracking, setIsTracking] = useState(false)
+  const [isPaused, setIsPaused] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [status, setStatus] = useState('idle')
   const [error, setError] = useState('')
@@ -80,13 +81,44 @@ const LiveRun = () => {
   const mapRef = useRef(null)
   const positionsRef = useRef([])
   const distanceRef = useRef(0)
+  const distanceSyncedRef = useRef(0)
+  const distanceSyncingRef = useRef(false)
   const capturedRef = useRef(false)
   const latestPositionRef = useRef(null)
 
   const latestPosition = positions[positions.length - 1]
   const userColor = useMemo(() => colorFromId(user?.uid), [user?.uid])
 
-  const stopTracking = () => {
+  const syncDistanceProgress = async () => {
+    if (!user || distanceSyncingRef.current) return
+    const currentDistance = distanceRef.current
+    const delta = currentDistance - distanceSyncedRef.current
+    if (!Number.isFinite(delta) || delta <= 0) return
+    distanceSyncingRef.current = true
+    try {
+      await runTransaction(db, async (transaction) => {
+        const userRef = doc(db, 'users', user.uid)
+        const snapshot = await transaction.get(userRef)
+        const current = snapshot.exists() ? snapshot.data() : {}
+        transaction.set(
+          userRef,
+          {
+            username: profile?.username || user.displayName || 'Runner',
+            email: user.email || current.email || '',
+            totalDistance: (current.totalDistance || 0) + delta,
+          },
+          { merge: true }
+        )
+      })
+      distanceSyncedRef.current = currentDistance
+    } catch (err) {
+      // ignore sync errors; distance will be retried next stop
+    } finally {
+      distanceSyncingRef.current = false
+    }
+  }
+
+  const clearTrackingIntervals = () => {
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current)
       watchIdRef.current = null
@@ -99,23 +131,46 @@ const LiveRun = () => {
       clearInterval(activeRunnerRef.current)
       activeRunnerRef.current = null
     }
+  }
+
+  const stopTracking = ({ persistDistance = true } = {}) => {
+    clearTrackingIntervals()
+    if (persistDistance) {
+      syncDistanceProgress()
+    }
     setIsTracking(false)
+    setIsPaused(false)
     setStatus('idle')
     if (user) {
       deleteDoc(doc(db, 'activeRunners', user.uid)).catch(() => undefined)
     }
   }
 
-  const resetRun = () => {
-    stopTracking()
+  const pauseTracking = () => {
+    clearTrackingIntervals()
+    setIsTracking(false)
+    setIsPaused(true)
+    setStatus('paused')
+    if (user) {
+      deleteDoc(doc(db, 'activeRunners', user.uid)).catch(() => undefined)
+    }
+  }
+
+  const clearRunState = () => {
     setPositions([])
     positionsRef.current = []
     setDistance(0)
     distanceRef.current = 0
+    distanceSyncedRef.current = 0
     setTimer(0)
     setCaptured(null)
     capturedRef.current = false
     setError('')
+  }
+
+  const resetRun = () => {
+    stopTracking()
+    clearRunState()
   }
 
   const finalizeCapture = async (points, totalDistance) => {
@@ -125,6 +180,7 @@ const LiveRun = () => {
       const area = polygonAreaMeters2(points)
       const safeDistance = Number.isFinite(totalDistance) ? totalDistance : 0
       const safeArea = Number.isFinite(area) ? area : 0
+      const unsyncedDistance = Math.max(0, safeDistance - distanceSyncedRef.current)
       const center = calculateCentroid(points)
       const payload = {
         userId: user.uid,
@@ -144,7 +200,7 @@ const LiveRun = () => {
         const current = snapshot.exists() ? snapshot.data() : {}
         const nextTotals = {
           totalArea: (current.totalArea || 0) + safeArea,
-          totalDistance: (current.totalDistance || 0) + safeDistance,
+          totalDistance: (current.totalDistance || 0) + unsyncedDistance,
           totalCaptures: (current.totalCaptures || 0) + 1,
         }
         transaction.set(
@@ -158,6 +214,7 @@ const LiveRun = () => {
         )
         return nextTotals
       })
+      distanceSyncedRef.current = safeDistance
       await refreshProfile()
       const badges = await fetchBadges()
       const newlyEarned = await awardBadges({
@@ -209,9 +266,9 @@ const LiveRun = () => {
 
       if (!capturedRef.current && updated.length >= 4) {
         const loopDistance = haversineDistance(updated[0], updated[updated.length - 1])
-        if (loopDistance <= 500) {
+        if (loopDistance <= 200) {
           capturedRef.current = true
-          stopTracking()
+          stopTracking({ persistDistance: false })
           finalizeCapture(updated, distanceRef.current)
         }
       }
@@ -232,18 +289,43 @@ const LiveRun = () => {
     setError('')
     setStatus('locating')
     setIsTracking(true)
+    setIsPaused(false)
     watchIdRef.current = navigator.geolocation.watchPosition(
       handlePosition,
       (err) => {
+        if (err?.code === 3) {
+          setStatus('locating')
+          setError('Location is taking too long. Please enable GPS or move to open sky.')
+          return
+        }
         setError(err.message || 'Unable to retrieve location.')
         stopTracking()
       },
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 }
     )
 
     timerRef.current = setInterval(() => {
       setTimer((prev) => prev + 1)
     }, 1000)
+  }
+
+  const saveTerritory = async () => {
+    if (saving) return
+    const points = positionsRef.current
+    if (!points || points.length < 4) {
+      stopTracking({ persistDistance: true })
+      clearRunState()
+      return
+    }
+    const loopDistance = haversineDistance(points[0], points[points.length - 1])
+    if (loopDistance > 200) {
+      stopTracking({ persistDistance: true })
+      clearRunState()
+      return
+    }
+    setError('')
+    stopTracking({ persistDistance: false })
+    await finalizeCapture(points, distanceRef.current)
   }
 
   useEffect(() => {
@@ -315,6 +397,19 @@ const LiveRun = () => {
   }, [timer])
 
   const formattedSpeed = useMemo(() => formatSpeed(distance, timer), [distance, timer])
+  const saveState = useMemo(() => {
+    if (!positions.length) {
+      return { canSave: false, title: 'Start tracking to save territory.' }
+    }
+    if (positions.length < 4) {
+      return { canSave: false, title: 'Need more points to save territory.' }
+    }
+    const loopDistance = haversineDistance(positions[0], positions[positions.length - 1])
+    if (loopDistance > 200) {
+      return { canSave: false, title: 'Close the loop within 200 meters to save.' }
+    }
+    return { canSave: true, title: 'Save territory' }
+  }, [positions])
 
   return (
     <div className="flex flex-1 flex-col gap-6 px-4 pb-28 pt-6">
@@ -346,9 +441,11 @@ const LiveRun = () => {
                 ? 'Territory captured'
                 : status === 'locating'
                   ? 'Searching GPS'
-                  : isTracking
-                    ? 'Tracking'
-                    : 'Idle'}
+                  : isPaused
+                    ? 'Paused'
+                    : isTracking
+                      ? 'Tracking'
+                      : 'Idle'}
           </p>
         </div>
       </div>
@@ -452,7 +549,9 @@ const LiveRun = () => {
           <div className="mt-3 grid gap-3 text-sm text-white/80 md:grid-cols-3">
             <div>
               <p className="text-white/50">Area</p>
-              <p className="text-lg font-semibold text-neonBlue">{formatArea(captured.area)}</p>
+              <p className="text-lg font-semibold text-neonBlue">
+                {formatAreaMeters(captured.area)}
+              </p>
             </div>
             <div>
               <p className="text-white/50">Distance</p>
@@ -474,13 +573,24 @@ const LiveRun = () => {
             disabled={!isOnline}
             className="rounded-2xl bg-neonGreen px-6 py-4 text-sm font-semibold uppercase tracking-[0.3em] text-[#0b1423] transition hover:shadow-green"
           >
-            {isOnline ? 'Start Tracking' : 'Offline'}
+            {isOnline ? (isPaused ? 'Resume Run' : 'Start Tracking') : 'Offline'}
+          </button>
+        )}
+        {(isTracking || isPaused) && !captured && (
+          <button
+            type="button"
+            onClick={saveTerritory}
+            disabled={saving}
+            title={saveState.title}
+            className="rounded-2xl border border-neonBlue/60 bg-[#0b1423]/70 px-6 py-4 text-sm font-semibold uppercase tracking-[0.3em] text-neonBlue transition hover:border-neonBlue disabled:opacity-60"
+          >
+            {saving ? 'Saving...' : 'Save Territory'}
           </button>
         )}
         {isTracking && (
           <button
             type="button"
-            onClick={stopTracking}
+            onClick={pauseTracking}
             className="rounded-2xl border border-white/10 bg-[#0b1423]/70 px-6 py-4 text-sm font-semibold uppercase tracking-[0.3em] text-white transition hover:border-neonBlue"
           >
             Pause Run

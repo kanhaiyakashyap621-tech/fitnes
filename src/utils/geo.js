@@ -42,6 +42,11 @@ export const formatArea = (value) => {
   return `${(value / 1000000).toFixed(2)} km²`
 }
 
+export const formatAreaMeters = (value) => {
+  const safeValue = Number.isFinite(value) ? value : 0
+  return `${safeValue.toFixed(0)} m²`
+}
+
 export const formatSpeed = (distanceMeters, elapsedSeconds) => {
   if (!elapsedSeconds) return '0.00 km/h'
   const km = distanceMeters / 1000

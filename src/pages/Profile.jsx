@@ -4,7 +4,7 @@ import { doc, updateDoc } from 'firebase/firestore'
 import { useAuth } from '../contexts/AuthContext'
 import { auth, db } from '../firebase'
 import { fetchBadges } from '../utils/badges'
-import { formatArea, formatMeters } from '../utils/geo'
+import { formatAreaMeters, formatMeters } from '../utils/geo'
 
 const Profile = () => {
   const { user, profile, refreshProfile, logout } = useAuth()
@@ -108,7 +108,9 @@ const Profile = () => {
             </div>
             <div className="flex items-center justify-between">
               <span>Total Area</span>
-              <span className="font-semibold text-neonBlue">{formatArea(profile?.totalArea || 0)}</span>
+              <span className="font-semibold text-neonBlue">
+                {formatAreaMeters(profile?.totalArea || 0)}
+              </span>
             </div>
             <div className="flex items-center justify-between">
               <span>Total Captures</span>

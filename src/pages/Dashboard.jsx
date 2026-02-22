@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import GlassCard from '../components/GlassCard'
 import InstallPrompt from '../components/InstallPrompt'
 import NotificationPrompt from '../components/NotificationPrompt'
-import { formatArea, formatMeters } from '../utils/geo'
+import { formatAreaMeters, formatMeters } from '../utils/geo'
 
 const Dashboard = () => {
   const { profile, room, leaveRoom } = useAuth()
@@ -49,7 +49,7 @@ const Dashboard = () => {
         <GlassCard>
           <p className="text-xs uppercase tracking-[0.3em] text-white/60">Total Area</p>
           <p className="mt-3 text-2xl font-semibold text-neonBlue">
-            {formatArea(profile?.totalArea || 0)}
+            {formatAreaMeters(profile?.totalArea || 0)}
           </p>
         </GlassCard>
         <GlassCard>

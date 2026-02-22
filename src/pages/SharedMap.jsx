@@ -12,7 +12,7 @@ import UserLocationMarker from '../components/UserLocationMarker'
 import { db } from '../firebase'
 import { useUserLocation } from '../hooks/useUserLocation'
 import { colorFromId } from '../utils/colors'
-import { calculateBoundingBox, formatArea, haversineDistance } from '../utils/geo'
+import { calculateBoundingBox, formatAreaMeters, haversineDistance } from '../utils/geo'
 
 const DEFAULT_CENTER = [39.5, -98.35]
 const RADIUS_METERS = 5000
@@ -206,7 +206,7 @@ const SharedMap = () => {
         if (change.type !== 'added') return
         const data = change.doc.data()
         if (data.userId === user?.uid) return
-        const message = `${data.username || 'Runner'} captured ${formatArea(
+        const message = `${data.username || 'Runner'} captured ${formatAreaMeters(
           data.area || 0
         )}`
         addToast({
@@ -427,7 +427,7 @@ const SharedMap = () => {
                   <div className="text-right">
                     <p className="text-xs uppercase tracking-[0.2em] text-white/60">Area</p>
                     <p className="text-sm font-semibold text-neonBlue">
-                      {formatArea(territory.area || 0)}
+                      {formatAreaMeters(territory.area || 0)}
                     </p>
                   </div>
                 </div>

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 
 const DEFAULT_ERROR = 'Location access is required for live running.'
+const LOCATION_TIMEOUT_MS = 30000
+const LOCATION_MAX_AGE_MS = 5000
 
 export const useUserLocation = ({ enabled = true, throttleMs = 3000, enableHighAccuracy = true } = {}) => {
   const [position, setPosition] = useState(null)
@@ -48,7 +50,12 @@ export const useUserLocation = ({ enabled = true, throttleMs = 3000, enableHighA
 
     const handleError = (err) => {
       if (!active) return
-      const message = err?.code === 1 ? DEFAULT_ERROR : err?.message || 'Unable to retrieve location.'
+      const message =
+        err?.code === 1
+          ? DEFAULT_ERROR
+          : err?.code === 3
+            ? 'Location is taking too long. Please enable GPS or move to open sky.'
+            : err?.message || 'Unable to retrieve location.'
       setError(message)
       setLoading(false)
     }
@@ -56,15 +63,15 @@ export const useUserLocation = ({ enabled = true, throttleMs = 3000, enableHighA
     navigator.geolocation.getCurrentPosition(
       (pos) => handleSuccess(pos, true),
       handleError,
-      { enableHighAccuracy, maximumAge: 0, timeout: 10000 }
+      { enableHighAccuracy, maximumAge: LOCATION_MAX_AGE_MS, timeout: LOCATION_TIMEOUT_MS }
     )
 
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => handleSuccess(pos),
       (err) => {
-        if (err?.code === 1) handleError(err)
+        if (err?.code === 1 || err?.code === 3) handleError(err)
       },
-      { enableHighAccuracy, maximumAge: 0, timeout: 10000 }
+      { enableHighAccuracy, maximumAge: LOCATION_MAX_AGE_MS, timeout: LOCATION_TIMEOUT_MS }
     )
 
     return () => {

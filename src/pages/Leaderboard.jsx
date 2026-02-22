@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useNotifications } from '../contexts/NotificationContext'
 import { useToast } from '../contexts/ToastContext'
 import { db } from '../firebase'
-import { formatArea, formatMeters } from '../utils/geo'
+import { formatAreaMeters, formatMeters } from '../utils/geo'
 
 const chunkMembers = (members, size) => {
   const chunks = []
@@ -124,7 +124,7 @@ const Leaderboard = () => {
             <div className="text-right">
               <p className="text-xs uppercase tracking-[0.3em] text-white/60">Area</p>
               <p className="mt-1 text-lg font-semibold text-neonBlue">
-                {formatArea(leader.totalArea || 0)}
+                {formatAreaMeters(leader.totalArea || 0)}
               </p>
             </div>
           </div>
@@ -141,7 +141,7 @@ const Leaderboard = () => {
           <div>
             <p className="text-white/50">Total Area</p>
             <p className="text-lg font-semibold text-neonGreen">
-              {formatArea(profile?.totalArea || 0)}
+              {formatAreaMeters(profile?.totalArea || 0)}
             </p>
           </div>
           <div>
