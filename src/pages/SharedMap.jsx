@@ -425,8 +425,18 @@ const SharedMap = () => {
         <FilterToggle value={selectedFilter} onChange={setSelectedFilter} />
       )}
 
-      <div className="fixed bottom-4 right-4 z-[80]">
-        <div className="flex items-center">
+      <div
+        className={`relative isolate overflow-hidden rounded-3xl border border-white/10 shadow-glow transition-all duration-300 ${
+          isFullscreen
+            ? 'fixed inset-0 z-50 h-[100vh] w-full'
+            : 'h-[60vh]'
+        }`}
+      >
+        <FollowToggle
+          isFollowing={isFollowing}
+          onToggle={() => setIsFollowing((prev) => !prev)}
+        />
+        <div className="pointer-events-auto absolute bottom-4 right-4 z-[1200]">
           <button
             type="button"
             onClick={() => setIsFullscreen((prev) => !prev)}
@@ -457,19 +467,6 @@ const SharedMap = () => {
             )}
           </button>
         </div>
-      </div>
-
-      <div
-        className={`relative isolate overflow-hidden rounded-3xl border border-white/10 shadow-glow transition-all duration-300 ${
-          isFullscreen
-            ? 'fixed inset-0 z-50 h-[100vh] w-full'
-            : 'h-[60vh]'
-        }`}
-      >
-        <FollowToggle
-          isFollowing={isFollowing}
-          onToggle={() => setIsFollowing((prev) => !prev)}
-        />
         <MapContainer
           center={DEFAULT_CENTER}
           zoom={5}

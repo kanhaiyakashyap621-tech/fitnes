@@ -12,13 +12,14 @@ import Leaderboard from './pages/Leaderboard'
 import LiveRun from './pages/LiveRun'
 import Login from './pages/Login'
 import NotFound from './pages/NotFound'
+import Notifications from './pages/Notifications'
 import Profile from './pages/Profile'
 import Room from './pages/Room'
 import SharedMap from './pages/SharedMap'
 import Signup from './pages/Signup'
 
 const AppShell = ({ children }) => {
-  const { profile, room, logout } = useAuth()
+  const { profile, room } = useAuth()
   const inRoom = Boolean(profile?.currentRoomId)
 
   return (
@@ -40,13 +41,7 @@ const AppShell = ({ children }) => {
               <OfflineIndicator />
             </div>
           </div>
-          <button
-            type="button"
-            onClick={logout}
-            className="rounded-full border border-white/10 px-4 py-2 text-xs uppercase tracking-[0.2em] text-white/70 transition hover:border-neonBlue hover:text-white"
-          >
-            Logout
-          </button>
+          <div />
         </div>
         <div className="mx-auto w-full max-w-5xl px-4 pb-3">
           <MobileNotice />
@@ -140,6 +135,16 @@ const App = () => (
           <ProtectedRoute>
             <AppShell>
               <Profile />
+            </AppShell>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/notifications"
+        element={
+          <ProtectedRoute>
+            <AppShell>
+              <Notifications />
             </AppShell>
           </ProtectedRoute>
         }

@@ -171,6 +171,25 @@ service cloud.firestore {
       && (isJoin(resource.data.members, data.members) || isLeave(resource.data.members, data.members));
     }
 
+    function validNotification(data) {
+      return data.keys().hasOnly([
+        'userId',
+        'title',
+        'message',
+        'tone',
+        'icon',
+        'read',
+        'createdAt'
+      ])
+      && data.userId == request.auth.uid
+      && data.title is string
+      && data.message is string
+      && data.tone is string
+      && data.icon is string
+      && data.read is bool
+      && (data.createdAt is timestamp || data.createdAt == request.time);
+    }
+
     match /users/{userId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.auth.uid == userId && validUser(request.resource.data);
@@ -210,6 +229,12 @@ service cloud.firestore {
         && runnerId == request.auth.uid
         && validActiveRunner(request.resource.data);
       allow delete: if isSignedIn() && runnerId == request.auth.uid;
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && validNotification(request.resource.data);
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
   }
 }

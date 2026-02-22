@@ -444,8 +444,18 @@ const LiveRun = () => {
         </div>
       </div>
 
-      <div className="fixed bottom-4 right-4 z-[80]">
-        <div className="flex items-center">
+      <div
+        className={`relative isolate overflow-hidden border border-white/10 shadow-glow transition-all duration-300 ${
+          isFullscreen
+            ? 'fixed inset-0 z-50 h-[100vh] w-full rounded-none'
+            : 'h-[50vh] md:h-[60vh] rounded-3xl'
+        }`}
+      >
+        <FollowToggle
+          isFollowing={isFollowing}
+          onToggle={() => setIsFollowing((prev) => !prev)}
+        />
+        <div className="pointer-events-auto absolute bottom-4 right-4 z-[1200]">
           <button
             type="button"
             onClick={() => setIsFullscreen((prev) => !prev)}
@@ -476,19 +486,6 @@ const LiveRun = () => {
             )}
           </button>
         </div>
-      </div>
-
-      <div
-        className={`relative isolate overflow-hidden border border-white/10 shadow-glow transition-all duration-300 ${
-          isFullscreen
-            ? 'fixed inset-0 z-50 h-[100vh] w-full rounded-none'
-            : 'h-[50vh] md:h-[60vh] rounded-3xl'
-        }`}
-      >
-        <FollowToggle
-          isFollowing={isFollowing}
-          onToggle={() => setIsFollowing((prev) => !prev)}
-        />
         <MapContainer
           center={DEFAULT_CENTER}
           zoom={16}

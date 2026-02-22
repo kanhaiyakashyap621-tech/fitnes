@@ -29,14 +29,41 @@ const Dashboard = () => {
 
   return (
     <div className="flex flex-1 flex-col gap-6 px-4 pb-28 pt-8">
-      <div className="space-y-2">
-        <p className="text-xs uppercase tracking-[0.3em] text-neonBlue">Runner Control</p>
-        <h1 className="text-3xl font-semibold text-white">
-          Welcome back{profile?.username ? `, ${profile.username}` : ''}.
-        </h1>
-        <p className="text-sm text-white/70">
-          Every loop you close becomes a glowing territory. Run smart and claim more.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-2">
+          <p className="text-xs uppercase tracking-[0.3em] text-neonBlue">Runner Control</p>
+          <h1 className="text-3xl font-semibold text-white">
+            Welcome back{profile?.username ? `, ${profile.username}` : ''}.
+          </h1>
+          <p className="text-sm text-white/70">
+            Every loop you close becomes a glowing territory. Run smart and claim more.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => navigate('/notifications')}
+          className="flex h-11 w-11 items-center justify-center rounded-full border border-neonBlue/40 bg-[#0b1423]/70 text-neonBlue transition hover:border-neonBlue hover:shadow-glow"
+          aria-label="Open notifications"
+          title="Notifications"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M15 17H9m6-6V8a3 3 0 10-6 0v3l-2 3h10l-2-3z"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M18 9a6 6 0 10-12 0c0 5-2 6-2 6h16s-2-1-2-6z"
+              stroke="currentColor"
+              strokeWidth="1.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity="0.7"
+            />
+          </svg>
+        </button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">

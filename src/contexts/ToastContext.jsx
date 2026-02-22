@@ -1,4 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react'
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore'
+import { db } from '../firebase'
+import { useAuth } from './AuthContext'
 
 const ToastContext = createContext(null)
 
@@ -7,6 +10,7 @@ const createId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`
 export const useToast = () => useContext(ToastContext)
 
 export const ToastProvider = ({ children }) => {
+  const { user } = useAuth()
   const [toasts, setToasts] = useState([])
   const timersRef = useRef(new Map())
 
@@ -31,13 +35,24 @@ export const ToastProvider = ({ children }) => {
         duration: typeof toast.duration === 'number' ? toast.duration : 4500,
       }
       setToasts((prev) => [...prev.slice(-3), payload])
+      if (user) {
+        addDoc(collection(db, 'notifications'), {
+          userId: user.uid,
+          title: payload.title,
+          message: payload.message,
+          tone: payload.tone,
+          icon: payload.icon,
+          read: false,
+          createdAt: serverTimestamp(),
+        }).catch(() => undefined)
+      }
       if (payload.duration > 0) {
         const timer = setTimeout(() => removeToast(id), payload.duration)
         timersRef.current.set(id, timer)
       }
       return id
     },
-    [removeToast]
+    [removeToast, user]
   )
 
   const value = useMemo(() => ({ addToast, removeToast }), [addToast, removeToast])

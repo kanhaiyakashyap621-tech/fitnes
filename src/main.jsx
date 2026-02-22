@@ -10,13 +10,13 @@ import { registerSW } from 'virtual:pwa-register'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <ToastProvider>
-      <AuthProvider>
+    <AuthProvider>
+      <ToastProvider>
         <NotificationProvider>
           <App />
         </NotificationProvider>
-      </AuthProvider>
-    </ToastProvider>
+      </ToastProvider>
+    </AuthProvider>
   </StrictMode>
 )
 
