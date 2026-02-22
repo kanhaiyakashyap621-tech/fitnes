@@ -22,13 +22,35 @@ import {
 const DEFAULT_CENTER = [39.5, -98.35]
 const RADIUS_METERS = 5000
 
+const normalizePoints = (rawPoints = []) =>
+  rawPoints
+    .map((point) => {
+      if (!point) return null
+      if (Array.isArray(point) && point.length >= 2) {
+        const [lat, lng] = point
+        return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null
+      }
+      if (typeof point.latitude === 'number' && typeof point.longitude === 'number') {
+        return { lat: point.latitude, lng: point.longitude }
+      }
+      if (typeof point._lat === 'number' && typeof point._long === 'number') {
+        return { lat: point._lat, lng: point._long }
+      }
+      if (typeof point.lat === 'number' && typeof point.lng === 'number') {
+        return { lat: point.lat, lng: point.lng }
+      }
+      return null
+    })
+    .filter(Boolean)
+
 const FitTerritories = ({ territories }) => {
   const map = useMap()
 
   useEffect(() => {
     if (!territories.length) return
     const bounds = territories.reduce((acc, territory) => {
-      territory.coordinates.forEach((point) => acc.push([point.lat, point.lng]))
+      const points = territory.normalizedCoordinates || normalizePoints(territory.coordinates || [])
+      points.forEach((point) => acc.push([point.lat, point.lng]))
       return acc
     }, [])
     if (bounds.length) {
@@ -111,7 +133,12 @@ const TerritoryLayer = ({ territories }) => {
     polygonsRef.current = []
 
     territories.forEach((territory) => {
-      const coords = (territory.coordinates || [])
+      const points =
+        territory.normalizedCoordinates ||
+        normalizePoints(
+          territory.coordinates || territory.path || territory.points || territory.positions || []
+        )
+      const coords = points
         .map((point) => [point.lat, point.lng])
         .filter((point) => Number.isFinite(point[0]) && Number.isFinite(point[1]))
 
@@ -186,14 +213,19 @@ const SharedMap = () => {
   useEffect(() => {
     if (!bbox) return undefined
 
-    const baseConstraints = []
+    const centerConstraints = []
     if (roomId) {
-      baseConstraints.push(where('roomId', '==', roomId))
+      centerConstraints.push(where('roomId', '==', roomId))
     } else {
-      baseConstraints.push(where('roomId', '==', null))
+      centerConstraints.push(where('roomId', '==', null))
     }
     if (filterSince) {
-      baseConstraints.push(where('createdAt', '>=', filterSince))
+      centerConstraints.push(where('createdAt', '>=', filterSince))
+    }
+
+    const legacyConstraints = []
+    if (roomId) {
+      legacyConstraints.push(where('roomId', '==', roomId))
     }
 
     const notifyOnAdd = (data) => {
@@ -243,7 +275,7 @@ const SharedMap = () => {
 
     const centerQuery = query(
       collection(db, 'territories'),
-      ...baseConstraints,
+      ...centerConstraints,
       where('centerLat', '>=', bbox.minLat),
       where('centerLat', '<=', bbox.maxLat),
       where('centerLng', '>=', bbox.minLng),
@@ -252,7 +284,7 @@ const SharedMap = () => {
 
     const legacyQuery = query(
       collection(db, 'territories'),
-      ...baseConstraints,
+      ...legacyConstraints,
       where('centerLat', '==', null)
     )
 
@@ -315,27 +347,41 @@ const SharedMap = () => {
     return () => unsub()
   }, [roomId])
 
-  const coloredTerritories = useMemo(
-    () =>
-      territories
-        .map((territory) => {
-          const hasCenter =
-            Number.isFinite(territory.centerLat) && Number.isFinite(territory.centerLng)
-          const derivedCenter = hasCenter
-            ? { lat: territory.centerLat, lng: territory.centerLng }
-            : calculateCentroid(territory.coordinates || [])
-          return {
-            ...territory,
-            color: colorFromId(territory.userId),
-            derivedCenter,
-          }
-        })
-        .filter((territory) => {
-          if (!territory.derivedCenter) return false
-          return haversineDistance(territory.derivedCenter, effectiveLocation) <= RADIUS_METERS
-        }),
-    [effectiveLocation, territories]
-  )
+  const coloredTerritories = useMemo(() => {
+    const sinceMs = filterSince?.toMillis?.() ?? null
+    return territories
+      .map((territory) => {
+        const points = normalizePoints(
+          territory.coordinates || territory.path || territory.points || territory.positions || []
+        )
+        const hasCenter =
+          Number.isFinite(territory.centerLat) && Number.isFinite(territory.centerLng)
+        const derivedCenter = hasCenter
+          ? { lat: territory.centerLat, lng: territory.centerLng }
+          : calculateCentroid(points)
+        return {
+          ...territory,
+          normalizedCoordinates: points,
+          color: colorFromId(territory.userId),
+          derivedCenter,
+        }
+      })
+      .filter((territory) => {
+        const matchesRoom = roomId ? territory.roomId === roomId : territory.roomId == null
+        if (!matchesRoom) return false
+        if (sinceMs) {
+          const createdAt = territory.createdAt
+          const createdAtMs =
+            createdAt?.toMillis?.() ??
+            (typeof createdAt?.seconds === 'number' ? createdAt.seconds * 1000 : null) ??
+            (createdAt instanceof Date ? createdAt.getTime() : null) ??
+            (typeof createdAt === 'number' ? createdAt : null)
+          if (!createdAtMs || createdAtMs < sinceMs) return false
+        }
+        if (!territory.derivedCenter) return false
+        return haversineDistance(territory.derivedCenter, effectiveLocation) <= RADIUS_METERS
+      })
+  }, [effectiveLocation, filterSince, roomId, territories])
 
   const liveRunners = useMemo(() => {
     const cutoff = 15000
