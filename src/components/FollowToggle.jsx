@@ -1,6 +1,6 @@
 const FollowToggle = ({ isFollowing, onToggle }) => {
   return (
-    <div className="pointer-events-auto absolute right-4 top-4 z-[1200] flex items-center gap-2">
+    <div className="pointer-events-auto absolute right-3 top-4 z-[1200] flex items-center gap-2">
       <button
         type="button"
         onClick={onToggle}
@@ -13,7 +13,7 @@ const FollowToggle = ({ isFollowing, onToggle }) => {
         }`}
       >
         {isFollowing ? (
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <svg width="25" height="20" viewBox="0 0 24 24" fill="none">
             <circle cx="12" cy="12" r="8" fill="currentColor" opacity="0.25" />
             <circle cx="12" cy="12" r="4.5" fill="currentColor" />
           </svg>
@@ -36,7 +36,6 @@ const FollowToggle = ({ isFollowing, onToggle }) => {
             : 'border-white/10 bg-white/5 text-white/70'
         }`}
       >
-        Follow Me
       </span>
     </div>
   )
