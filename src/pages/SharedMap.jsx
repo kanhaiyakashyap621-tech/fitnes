@@ -150,12 +150,6 @@ const TerritoryLayer = ({ territories }) => {
         fillOpacity: 0.35,
       })
 
-      polygon.bindTooltip(territory.username || 'Runner', {
-        permanent: true,
-        direction: 'center',
-        className: 'runner-label',
-      })
-
       polygon.addTo(layerRef.current)
       polygonsRef.current.push(polygon)
     })
