@@ -12,7 +12,12 @@ import UserLocationMarker from '../components/UserLocationMarker'
 import { db } from '../firebase'
 import { useUserLocation } from '../hooks/useUserLocation'
 import { colorFromId } from '../utils/colors'
-import { calculateBoundingBox, formatAreaMeters, haversineDistance } from '../utils/geo'
+import {
+  calculateBoundingBox,
+  calculateCentroid,
+  formatAreaMeters,
+  haversineDistance,
+} from '../utils/geo'
 
 const DEFAULT_CENTER = [39.5, -98.35]
 const RADIUS_METERS = 5000
@@ -142,8 +147,11 @@ const SharedMap = () => {
   const [selectedFilter, setSelectedFilter] = useState('24h')
   const [isFullscreen, setIsFullscreen] = useState(false)
   const mapRef = useRef(null)
+  const centerCacheRef = useRef(new Map())
+  const legacyCacheRef = useRef(new Map())
   const roomId = profile?.currentRoomId ?? null
   const initialLoadRef = useRef(true)
+  const initialSnapshotCountRef = useRef(0)
   const { position: userLocation, loading: locating, error: locationError } = useUserLocation({
     enabled: true,
     throttleMs: 3000,
@@ -177,56 +185,97 @@ const SharedMap = () => {
 
   useEffect(() => {
     if (!bbox) return undefined
-    const constraints = [
+
+    const baseConstraints = []
+    if (roomId) {
+      baseConstraints.push(where('roomId', '==', roomId))
+    } else {
+      baseConstraints.push(where('roomId', '==', null))
+    }
+    if (filterSince) {
+      baseConstraints.push(where('createdAt', '>=', filterSince))
+    }
+
+    const notifyOnAdd = (data) => {
+      if (data.userId === user?.uid) return
+      const message = `${data.username || 'Runner'} captured ${formatAreaMeters(data.area || 0)}`
+      addToast({
+        title: 'New territory captured',
+        message,
+        tone: 'info',
+      })
+      showLocalNotification({
+        title: 'Runner room update',
+        body: message,
+      })
+    }
+
+    const mergeTerritories = () => {
+      const combined = new Map([
+        ...legacyCacheRef.current,
+        ...centerCacheRef.current,
+      ])
+      setTerritories(Array.from(combined.values()))
+    }
+
+    const handleSnapshot = (snapshot, cacheRef) => {
+      snapshot.docChanges().forEach((change) => {
+        const id = change.doc.id
+        if (change.type === 'removed') {
+          cacheRef.current.delete(id)
+          return
+        }
+        const data = change.doc.data()
+        cacheRef.current.set(id, { id, ...data })
+        if (!initialLoadRef.current && change.type === 'added') {
+          notifyOnAdd(data)
+        }
+      })
+
+      if (initialLoadRef.current) {
+        initialSnapshotCountRef.current += 1
+        if (initialSnapshotCountRef.current >= 2) {
+          initialLoadRef.current = false
+        }
+      }
+      mergeTerritories()
+    }
+
+    const centerQuery = query(
+      collection(db, 'territories'),
+      ...baseConstraints,
       where('centerLat', '>=', bbox.minLat),
       where('centerLat', '<=', bbox.maxLat),
       where('centerLng', '>=', bbox.minLng),
-      where('centerLng', '<=', bbox.maxLng),
-    ]
-    if (roomId) {
-      constraints.unshift(where('roomId', '==', roomId))
-    } else {
-      constraints.unshift(where('roomId', '==', null))
+      where('centerLng', '<=', bbox.maxLng)
+    )
+
+    const legacyQuery = query(
+      collection(db, 'territories'),
+      ...baseConstraints,
+      where('centerLat', '==', null)
+    )
+
+    const unsubCenter = onSnapshot(centerQuery, (snapshot) =>
+      handleSnapshot(snapshot, centerCacheRef)
+    )
+    const unsubLegacy = onSnapshot(legacyQuery, (snapshot) =>
+      handleSnapshot(snapshot, legacyCacheRef)
+    )
+
+    return () => {
+      unsubCenter()
+      unsubLegacy()
     }
-    if (filterSince) {
-      constraints.push(where('createdAt', '>=', filterSince))
-    }
-    const q = query(collection(db, 'territories'), ...constraints)
-    const unsub = onSnapshot(q, (snapshot) => {
-      const items = snapshot.docs.map((docSnapshot) => ({
-        id: docSnapshot.id,
-        ...docSnapshot.data(),
-      }))
-      setTerritories(items)
-      if (initialLoadRef.current) {
-        initialLoadRef.current = false
-        return
-      }
-      snapshot.docChanges().forEach((change) => {
-        if (change.type !== 'added') return
-        const data = change.doc.data()
-        if (data.userId === user?.uid) return
-        const message = `${data.username || 'Runner'} captured ${formatAreaMeters(
-          data.area || 0
-        )}`
-        addToast({
-          title: 'New territory captured',
-          message,
-          tone: 'info',
-        })
-        showLocalNotification({
-          title: 'Runner room update',
-          body: message,
-        })
-      })
-    })
-    return () => unsub()
   }, [addToast, bbox, filterSince, roomId, showLocalNotification, user?.uid])
 
   useEffect(() => {
     initialLoadRef.current = true
+    initialSnapshotCountRef.current = 0
+    centerCacheRef.current = new Map()
+    legacyCacheRef.current = new Map()
     setTerritories([])
-  }, [roomId, selectedFilter])
+  }, [bbox, roomId, selectedFilter])
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 5000)
@@ -269,17 +318,21 @@ const SharedMap = () => {
   const coloredTerritories = useMemo(
     () =>
       territories
-        .map((territory) => ({
-          ...territory,
-          color: colorFromId(territory.userId),
-        }))
-        .filter((territory) => {
-          const center = {
-            lat: territory.centerLat,
-            lng: territory.centerLng,
+        .map((territory) => {
+          const hasCenter =
+            Number.isFinite(territory.centerLat) && Number.isFinite(territory.centerLng)
+          const derivedCenter = hasCenter
+            ? { lat: territory.centerLat, lng: territory.centerLng }
+            : calculateCentroid(territory.coordinates || [])
+          return {
+            ...territory,
+            color: colorFromId(territory.userId),
+            derivedCenter,
           }
-          if (!Number.isFinite(center.lat) || !Number.isFinite(center.lng)) return false
-          return haversineDistance(center, effectiveLocation) <= RADIUS_METERS
+        })
+        .filter((territory) => {
+          if (!territory.derivedCenter) return false
+          return haversineDistance(territory.derivedCenter, effectiveLocation) <= RADIUS_METERS
         }),
     [effectiveLocation, territories]
   )
