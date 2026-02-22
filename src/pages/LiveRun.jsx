@@ -209,7 +209,7 @@ const LiveRun = () => {
 
       if (!capturedRef.current && updated.length >= 4) {
         const loopDistance = haversineDistance(updated[0], updated[updated.length - 1])
-        if (loopDistance <= 20) {
+        if (loopDistance <= 500) {
           capturedRef.current = true
           stopTracking()
           finalizeCapture(updated, distanceRef.current)
