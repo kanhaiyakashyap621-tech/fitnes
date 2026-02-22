@@ -183,6 +183,9 @@ const SharedMap = () => {
     enabled: true,
     throttleMs: 3000,
   })
+  const hasUserLocation = Boolean(
+    userLocation && Number.isFinite(userLocation.lat) && Number.isFinite(userLocation.lng)
+  )
 
   const fallbackLocation = useMemo(
     () => ({
@@ -206,18 +209,16 @@ const SharedMap = () => {
   }, [selectedFilter])
 
   const bbox = useMemo(
-    () => calculateBoundingBox(effectiveLocation, RADIUS_METERS),
-    [effectiveLocation]
+    () => (hasUserLocation ? calculateBoundingBox(userLocation, RADIUS_METERS) : null),
+    [hasUserLocation, userLocation]
   )
 
   useEffect(() => {
-    if (!bbox) return undefined
+    const expectedSnapshots = bbox ? 2 : 1
 
     const centerConstraints = []
     if (roomId) {
       centerConstraints.push(where('roomId', '==', roomId))
-    } else {
-      centerConstraints.push(where('roomId', '==', null))
     }
     if (filterSince) {
       centerConstraints.push(where('createdAt', '>=', filterSince))
@@ -226,6 +227,9 @@ const SharedMap = () => {
     const legacyConstraints = []
     if (roomId) {
       legacyConstraints.push(where('roomId', '==', roomId))
+    }
+    if (filterSince) {
+      legacyConstraints.push(where('createdAt', '>=', filterSince))
     }
 
     const notifyOnAdd = (data) => {
@@ -266,38 +270,47 @@ const SharedMap = () => {
 
       if (initialLoadRef.current) {
         initialSnapshotCountRef.current += 1
-        if (initialSnapshotCountRef.current >= 2) {
+        if (initialSnapshotCountRef.current >= expectedSnapshots) {
           initialLoadRef.current = false
         }
       }
       mergeTerritories()
     }
 
-    const centerQuery = query(
-      collection(db, 'territories'),
-      ...centerConstraints,
-      where('centerLat', '>=', bbox.minLat),
-      where('centerLat', '<=', bbox.maxLat),
-      where('centerLng', '>=', bbox.minLng),
-      where('centerLng', '<=', bbox.maxLng)
-    )
-
-    const legacyQuery = query(
-      collection(db, 'territories'),
-      ...legacyConstraints,
-      where('centerLat', '==', null)
-    )
+    const centerQuery = bbox
+      ? query(
+          collection(db, 'territories'),
+          ...centerConstraints,
+          where('centerLat', '>=', bbox.minLat),
+          where('centerLat', '<=', bbox.maxLat),
+          where('centerLng', '>=', bbox.minLng),
+          where('centerLng', '<=', bbox.maxLng)
+        )
+      : query(collection(db, 'territories'), ...centerConstraints)
 
     const unsubCenter = onSnapshot(centerQuery, (snapshot) =>
       handleSnapshot(snapshot, centerCacheRef)
     )
-    const unsubLegacy = onSnapshot(legacyQuery, (snapshot) =>
-      handleSnapshot(snapshot, legacyCacheRef)
-    )
+
+    let unsubLegacy = null
+    if (bbox) {
+      const legacyQuery = query(
+        collection(db, 'territories'),
+        ...legacyConstraints,
+        where('centerLat', '==', null)
+      )
+      unsubLegacy = onSnapshot(legacyQuery, (snapshot) =>
+        handleSnapshot(snapshot, legacyCacheRef)
+      )
+    } else {
+      legacyCacheRef.current = new Map()
+    }
 
     return () => {
       unsubCenter()
-      unsubLegacy()
+      if (unsubLegacy) {
+        unsubLegacy()
+      }
     }
   }, [addToast, bbox, filterSince, roomId, showLocalNotification, user?.uid])
 
@@ -379,9 +392,10 @@ const SharedMap = () => {
           if (!createdAtMs || createdAtMs < sinceMs) return false
         }
         if (!territory.derivedCenter) return false
+        if (!hasUserLocation) return true
         return haversineDistance(territory.derivedCenter, effectiveLocation) <= RADIUS_METERS
       })
-  }, [effectiveLocation, filterSince, roomId, territories])
+  }, [effectiveLocation, filterSince, hasUserLocation, roomId, territories])
 
   const liveRunners = useMemo(() => {
     const cutoff = 15000
@@ -469,7 +483,9 @@ const SharedMap = () => {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           <FlyToUser position={effectiveLocation} enabled />
-          <UserRadiusLayer position={effectiveLocation} radius={RADIUS_METERS} />
+          {hasUserLocation && (
+            <UserRadiusLayer position={effectiveLocation} radius={RADIUS_METERS} />
+          )}
           {userLocation && (
             <UserLocationMarker
               position={[userLocation.lat, userLocation.lng]}
