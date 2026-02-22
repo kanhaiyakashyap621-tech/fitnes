@@ -29,6 +29,7 @@ import {
 } from '../utils/geo'
 
 const DEFAULT_CENTER = [40.7128, -74.006]
+const AUTO_CAPTURE_ENABLED = false
 
 const Recenter = ({ position }) => {
   const map = useMap()
@@ -264,7 +265,7 @@ const LiveRun = () => {
         setDistance(distanceRef.current)
       }
 
-      if (!capturedRef.current && updated.length >= 4) {
+      if (AUTO_CAPTURE_ENABLED && !capturedRef.current && updated.length >= 4) {
         const loopDistance = haversineDistance(updated[0], updated[updated.length - 1])
         if (loopDistance <= 200) {
           capturedRef.current = true
