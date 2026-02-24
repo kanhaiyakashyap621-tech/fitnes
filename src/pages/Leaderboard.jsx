@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { collection, documentId, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore'
+import Avatar from '../components/Avatar'
 import { useAuth } from '../contexts/AuthContext'
 import { useNotifications } from '../contexts/NotificationContext'
 import { useToast } from '../contexts/ToastContext'
@@ -117,9 +118,19 @@ const Leaderboard = () => {
               leader.isYou ? 'border border-neonGreen/40 shadow-green' : ''
             }`}
           >
-            <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-white/60">#{leader.rank}</p>
-              <p className="mt-1 text-lg font-semibold text-white">{leader.username || 'Runner'}</p>
+            <div className="flex items-center gap-4">
+              <Avatar
+                src={leader.avatarUrl}
+                name={leader.username || 'Runner'}
+                size={48}
+                className={leader.isYou ? 'border-neonGreen/60 text-neonGreen' : ''}
+              />
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-white/60">#{leader.rank}</p>
+                <p className="mt-1 text-lg font-semibold text-white">
+                  {leader.username || 'Runner'}
+                </p>
+              </div>
             </div>
             <div className="text-right">
               <p className="text-xs uppercase tracking-[0.3em] text-white/60">Area</p>

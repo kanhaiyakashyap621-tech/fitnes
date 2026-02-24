@@ -159,6 +159,19 @@ const TerritoryLayer = ({ territories }) => {
   return null
 }
 
+const getCreatedAtMs = (value) => {
+  if (!value) return null
+  if (typeof value.toMillis === 'function') return value.toMillis()
+  if (typeof value.seconds === 'number') return value.seconds * 1000
+  if (value instanceof Date) return value.getTime()
+  if (typeof value === 'number') return value
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value)
+    return Number.isNaN(parsed) ? null : parsed
+  }
+  return null
+}
+
 const SharedMap = () => {
   const { profile, room, user } = useAuth()
   const { addToast } = useToast()
@@ -209,14 +222,20 @@ const SharedMap = () => {
     [hasUserLocation, userLocation]
   )
 
-  useEffect(() => {
-    const expectedSnapshots = bbox ? 2 : 1
+  const serverBBox = useMemo(
+    () => (bbox && selectedFilter === '24h' ? bbox : null),
+    [bbox, selectedFilter]
+  )
 
+  useEffect(() => {
+    const expectedSnapshots = serverBBox ? 2 : 1
+
+    const applyServerTimeFilter = !serverBBox && filterSince
     const centerConstraints = []
     if (roomId) {
       centerConstraints.push(where('roomId', '==', roomId))
     }
-    if (filterSince) {
+    if (applyServerTimeFilter) {
       centerConstraints.push(where('createdAt', '>=', filterSince))
     }
 
@@ -224,7 +243,7 @@ const SharedMap = () => {
     if (roomId) {
       legacyConstraints.push(where('roomId', '==', roomId))
     }
-    if (filterSince) {
+    if (applyServerTimeFilter) {
       legacyConstraints.push(where('createdAt', '>=', filterSince))
     }
 
@@ -273,14 +292,14 @@ const SharedMap = () => {
       mergeTerritories()
     }
 
-    const centerQuery = bbox
+    const centerQuery = serverBBox
       ? query(
           collection(db, 'territories'),
           ...centerConstraints,
-          where('centerLat', '>=', bbox.minLat),
-          where('centerLat', '<=', bbox.maxLat),
-          where('centerLng', '>=', bbox.minLng),
-          where('centerLng', '<=', bbox.maxLng)
+          where('centerLat', '>=', serverBBox.minLat),
+          where('centerLat', '<=', serverBBox.maxLat),
+          where('centerLng', '>=', serverBBox.minLng),
+          where('centerLng', '<=', serverBBox.maxLng)
         )
       : query(collection(db, 'territories'), ...centerConstraints)
 
@@ -289,7 +308,7 @@ const SharedMap = () => {
     )
 
     let unsubLegacy = null
-    if (bbox) {
+    if (serverBBox) {
       const legacyQuery = query(
         collection(db, 'territories'),
         ...legacyConstraints,
@@ -308,7 +327,7 @@ const SharedMap = () => {
         unsubLegacy()
       }
     }
-  }, [addToast, bbox, filterSince, roomId, showLocalNotification, user?.uid])
+  }, [addToast, filterSince, roomId, serverBBox, showLocalNotification, user?.uid])
 
   useEffect(() => {
     initialLoadRef.current = true
@@ -316,7 +335,7 @@ const SharedMap = () => {
     centerCacheRef.current = new Map()
     legacyCacheRef.current = new Map()
     setTerritories([])
-  }, [bbox, roomId, selectedFilter])
+  }, [roomId, selectedFilter, serverBBox])
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 5000)
@@ -357,7 +376,12 @@ const SharedMap = () => {
   }, [roomId])
 
   const coloredTerritories = useMemo(() => {
-    const sinceMs = filterSince?.toMillis?.() ?? null
+    const sinceMs =
+      selectedFilter === '24h'
+        ? now - 24 * 60 * 60 * 1000
+        : selectedFilter === '7d'
+          ? now - 7 * 24 * 60 * 60 * 1000
+          : null
     return territories
       .map((territory) => {
         const points = normalizePoints(
@@ -379,19 +403,14 @@ const SharedMap = () => {
         const matchesRoom = roomId ? territory.roomId === roomId : territory.roomId == null
         if (!matchesRoom) return false
         if (sinceMs) {
-          const createdAt = territory.createdAt
-          const createdAtMs =
-            createdAt?.toMillis?.() ??
-            (typeof createdAt?.seconds === 'number' ? createdAt.seconds * 1000 : null) ??
-            (createdAt instanceof Date ? createdAt.getTime() : null) ??
-            (typeof createdAt === 'number' ? createdAt : null)
+          const createdAtMs = getCreatedAtMs(territory.createdAt)
           if (!createdAtMs || createdAtMs < sinceMs) return false
         }
         if (!territory.derivedCenter) return false
         if (!hasUserLocation) return true
         return haversineDistance(territory.derivedCenter, effectiveLocation) <= RADIUS_METERS
       })
-  }, [effectiveLocation, filterSince, hasUserLocation, roomId, territories])
+  }, [effectiveLocation, hasUserLocation, now, roomId, selectedFilter, territories])
 
   const liveRunners = useMemo(() => {
     const cutoff = 15000

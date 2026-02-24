@@ -22,6 +22,10 @@ service cloud.firestore {
         || (data[field] is list && data[field].size() <= maxSize);
     }
 
+    function optionalString(data, field) {
+      return !data.keys().hasAny([field]) || data[field] is string;
+    }
+
     function userDoc() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid));
     }
@@ -61,6 +65,7 @@ service cloud.firestore {
         'totalDistance',
         'totalArea',
         'totalCaptures',
+        'avatarUrl',
         'earnedBadges',
         'fcmTokens',
         'currentRoomId',
@@ -68,6 +73,7 @@ service cloud.firestore {
       ])
       && data.username is string
       && data.email is string
+      && optionalString(data, 'avatarUrl')
       && isNonNegativeNumber(data.totalDistance)
       && isNonNegativeNumber(data.totalArea)
       && isNonNegativeInt(data.totalCaptures)

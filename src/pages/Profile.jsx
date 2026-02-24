@@ -1,17 +1,26 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { updateProfile } from 'firebase/auth'
 import { doc, updateDoc } from 'firebase/firestore'
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
+import Avatar from '../components/Avatar'
 import { useAuth } from '../contexts/AuthContext'
-import { auth, db } from '../firebase'
+import { auth, db, storage } from '../firebase'
 import { fetchBadges } from '../utils/badges'
+import { AI_AVATARS } from '../utils/aiAvatars'
 import { formatAreaMeters, formatMeters } from '../utils/geo'
 
 const Profile = () => {
   const { user, profile, refreshProfile, logout } = useAuth()
   const [username, setUsername] = useState(profile?.username || '')
   const [status, setStatus] = useState('')
+  const [avatarStatus, setAvatarStatus] = useState('')
   const [saving, setSaving] = useState(false)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [savingAvatar, setSavingAvatar] = useState(false)
   const [badges, setBadges] = useState([])
+  const [avatarUrl, setAvatarUrl] = useState(profile?.avatarUrl || user?.photoURL || '')
+  const fileInputRef = useRef(null)
+  const isAvatarBusy = uploadingAvatar || savingAvatar
 
   const earnedSet = useMemo(() => new Set(profile?.earnedBadges || []), [profile?.earnedBadges])
 
@@ -20,6 +29,10 @@ const Profile = () => {
       setUsername(profile.username)
     }
   }, [profile?.username])
+
+  useEffect(() => {
+    setAvatarUrl(profile?.avatarUrl || user?.photoURL || '')
+  }, [profile?.avatarUrl, user?.photoURL])
 
   useEffect(() => {
     let active = true
@@ -52,6 +65,68 @@ const Profile = () => {
     }
   }
 
+  const handleAvatarSelect = () => {
+    if (isAvatarBusy) return
+    fileInputRef.current?.click()
+  }
+
+  const handleAvatarChange = async (event) => {
+    const file = event.target.files?.[0]
+    if (!file || !user) return
+    if (!file.type.startsWith('image/')) {
+      setAvatarStatus('Please select a valid image file.')
+      return
+    }
+    const maxSize = 2 * 1024 * 1024
+    if (file.size > maxSize) {
+      setAvatarStatus('Avatar must be under 2MB.')
+      return
+    }
+    setUploadingAvatar(true)
+    setAvatarStatus('')
+    try {
+      const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+      const safeExtension = extension.replace(/[^a-z0-9]/g, '') || 'jpg'
+      const avatarRef = ref(
+        storage,
+        `avatars/${user.uid}/${Date.now()}-avatar.${safeExtension}`
+      )
+      await uploadBytes(avatarRef, file, { contentType: file.type })
+      const url = await getDownloadURL(avatarRef)
+      await updateDoc(doc(db, 'users', user.uid), { avatarUrl: url })
+      if (auth.currentUser) {
+        await updateProfile(auth.currentUser, { photoURL: url })
+      }
+      await refreshProfile()
+      setAvatarUrl(url)
+      setAvatarStatus('Avatar updated.')
+    } catch (err) {
+      setAvatarStatus(err.message || 'Unable to upload avatar.')
+    } finally {
+      setUploadingAvatar(false)
+      event.target.value = ''
+    }
+  }
+
+  const applyAiAvatar = async (avatar) => {
+    if (!user || !avatar?.src || isAvatarBusy) return
+    setSavingAvatar(true)
+    setAvatarStatus('')
+    try {
+      await updateDoc(doc(db, 'users', user.uid), { avatarUrl: avatar.src })
+      if (auth.currentUser) {
+        await updateProfile(auth.currentUser, { photoURL: avatar.src })
+      }
+      await refreshProfile()
+      setAvatarUrl(avatar.src)
+      setAvatarStatus('Avatar updated.')
+    } catch (err) {
+      setAvatarStatus(err.message || 'Unable to update avatar.')
+    } finally {
+      setSavingAvatar(false)
+    }
+  }
+
   return (
     <div className="flex flex-1 flex-col gap-6 px-4 pb-28 pt-6">
       <div className="space-y-2">
@@ -63,6 +138,60 @@ const Profile = () => {
       <div className="grid gap-4 md:grid-cols-2">
         <div className="glass-card rounded-2xl p-5">
           <p className="text-xs uppercase tracking-[0.3em] text-white/60">Account</p>
+          <div className="mt-4 flex items-center gap-4">
+            <Avatar
+              src={avatarUrl}
+              name={profile?.username || user?.displayName || 'Runner'}
+              size={72}
+              className="border-neonGreen/40 text-neonGreen"
+            />
+            <div className="flex-1">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarChange}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={handleAvatarSelect}
+                disabled={isAvatarBusy}
+                className="rounded-xl border border-neonGreen/40 bg-[#0b1423]/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-neonGreen transition hover:border-neonGreen disabled:opacity-60"
+              >
+                {uploadingAvatar ? 'Uploading...' : 'Change Avatar'}
+              </button>
+              <p className="mt-2 text-xs text-white/50">PNG/JPG up to 2MB.</p>
+              {avatarStatus && (
+                <p className="mt-2 text-xs text-neonGreen/80">{avatarStatus}</p>
+              )}
+            </div>
+          </div>
+          <div className="mt-6">
+            <p className="text-xs uppercase tracking-[0.3em] text-white/60">Cartoon Avatars</p>
+            <div className="mt-3 grid grid-cols-5 gap-3">
+              {AI_AVATARS.map((avatar) => {
+                const selected = avatar.src === avatarUrl
+                return (
+                  <button
+                    key={avatar.id}
+                    type="button"
+                    onClick={() => applyAiAvatar(avatar)}
+                    disabled={isAvatarBusy}
+                    className={`rounded-full p-1 transition ${
+                      selected
+                        ? 'ring-2 ring-neonGreen shadow-green'
+                        : 'ring-1 ring-white/10 hover:ring-neonBlue/60'
+                    }`}
+                    title={avatar.name}
+                  >
+                    <Avatar src={avatar.src} name={avatar.name} size={44} />
+                  </button>
+                )
+              })}
+            </div>
+            <p className="mt-2 text-xs text-white/50">Tap any avatar to apply.</p>
+          </div>
           <form className="mt-4 space-y-4" onSubmit={handleUpdate}>
             <label className="block text-sm text-white/70">
               Username
