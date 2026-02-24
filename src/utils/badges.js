@@ -1,6 +1,17 @@
 import { arrayUnion, collection, doc, getDocs, updateDoc } from 'firebase/firestore'
 import { db } from '../firebase'
 
+const DEFAULT_BADGES = [
+  {
+    id: 'distance-5k',
+    name: '5 km Runner',
+    description: 'Run a total distance of 5 km.',
+    icon: '🏃',
+    requirementType: 'distance',
+    requirementValue: 5000,
+  },
+]
+
 const getProgressValue = (badge, stats) => {
   if (!badge || !stats) return 0
   switch (badge.requirementType) {
@@ -17,9 +28,17 @@ const getProgressValue = (badge, stats) => {
 
 export const fetchBadges = async () => {
   const snapshot = await getDocs(collection(db, 'badges'))
-  return snapshot.docs
-    .map((docSnapshot) => ({ id: docSnapshot.id, ...docSnapshot.data() }))
-    .sort((a, b) => (a.requirementValue || 0) - (b.requirementValue || 0))
+  const remote = snapshot.docs.map((docSnapshot) => ({ id: docSnapshot.id, ...docSnapshot.data() }))
+  const merged = new Map()
+  DEFAULT_BADGES.forEach((badge) => {
+    merged.set(badge.id, badge)
+  })
+  remote.forEach((badge) => {
+    if (badge?.id) merged.set(badge.id, badge)
+  })
+  return Array.from(merged.values()).sort(
+    (a, b) => (a.requirementValue || 0) - (b.requirementValue || 0)
+  )
 }
 
 export const getEligibleBadges = (badges, stats, earnedBadges = []) => {

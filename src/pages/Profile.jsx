@@ -245,6 +245,10 @@ const Profile = () => {
               <span>Total Captures</span>
               <span className="font-semibold text-white">{profile?.totalCaptures || 0}</span>
             </div>
+            <div className="flex items-center justify-between">
+              <span>EXP Points</span>
+              <span className="font-semibold text-neonGreen">{profile?.expPoints || 0}</span>
+            </div>
           </div>
           <button
             type="button"

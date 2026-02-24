@@ -31,6 +31,11 @@ import {
 
 const DEFAULT_CENTER = [40.7128, -74.006]
 const AUTO_CAPTURE_ENABLED = false
+const EXP_POINTS_PER_KM = 10
+const KM_METERS = 1000
+
+const calculateExpPoints = (totalDistanceMeters = 0) =>
+  Math.floor(totalDistanceMeters / KM_METERS) * EXP_POINTS_PER_KM
 
 const FollowUser = ({ position, enabled, throttleMs = 3000 }) => {
   const map = useMap()
@@ -94,12 +99,18 @@ const LiveRun = () => {
         const userRef = doc(db, 'users', user.uid)
         const snapshot = await transaction.get(userRef)
         const current = snapshot.exists() ? snapshot.data() : {}
+        const nextTotalDistance = (current.totalDistance || 0) + delta
+        const nextExpPoints = Math.max(
+          current.expPoints || 0,
+          calculateExpPoints(nextTotalDistance)
+        )
         transaction.set(
           userRef,
           {
             username: profile?.username || user.displayName || 'Runner',
             email: user.email || current.email || '',
-            totalDistance: (current.totalDistance || 0) + delta,
+            totalDistance: nextTotalDistance,
+            expPoints: nextExpPoints,
           },
           { merge: true }
         )
@@ -192,10 +203,16 @@ const LiveRun = () => {
         const userRef = doc(db, 'users', user.uid)
         const snapshot = await transaction.get(userRef)
         const current = snapshot.exists() ? snapshot.data() : {}
+        const nextTotalDistance = (current.totalDistance || 0) + unsyncedDistance
+        const nextExpPoints = Math.max(
+          current.expPoints || 0,
+          calculateExpPoints(nextTotalDistance)
+        )
         const nextTotals = {
           totalArea: (current.totalArea || 0) + safeArea,
-          totalDistance: (current.totalDistance || 0) + unsyncedDistance,
+          totalDistance: nextTotalDistance,
           totalCaptures: (current.totalCaptures || 0) + 1,
+          expPoints: nextExpPoints,
         }
         transaction.set(
           userRef,

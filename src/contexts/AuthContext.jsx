@@ -17,6 +17,11 @@ import {
 } from 'firebase/firestore'
 import { auth, db } from '../firebase'
 
+const EXP_POINTS_PER_KM = 10
+const KM_METERS = 1000
+const calculateExpPoints = (distanceMeters = 0) =>
+  Math.floor(distanceMeters / KM_METERS) * EXP_POINTS_PER_KM
+
 const AuthContext = createContext(null)
 
 export const useAuth = () => useContext(AuthContext)
@@ -38,6 +43,13 @@ export const AuthProvider = ({ children }) => {
     }
     if (!Number.isInteger(data.totalCaptures) || data.totalCaptures < 0) {
       updates.totalCaptures = 0
+    }
+    const totalDistance = typeof data.totalDistance === 'number' ? data.totalDistance : 0
+    const computedExpPoints = calculateExpPoints(totalDistance)
+    if (typeof data.expPoints !== 'number' || Number.isNaN(data.expPoints)) {
+      updates.expPoints = computedExpPoints
+    } else if (data.expPoints < computedExpPoints) {
+      updates.expPoints = computedExpPoints
     }
     if (!Array.isArray(data.earnedBadges)) {
       updates.earnedBadges = []
@@ -114,6 +126,7 @@ export const AuthProvider = ({ children }) => {
       totalDistance: 0,
       totalArea: 0,
       totalCaptures: 0,
+      expPoints: 0,
       earnedBadges: [],
       fcmTokens: [],
       currentRoomId: null,

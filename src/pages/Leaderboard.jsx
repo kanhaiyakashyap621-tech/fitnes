@@ -75,6 +75,19 @@ const Leaderboard = () => {
     [leaders, user?.uid]
   )
 
+  const getRankBadge = (rank) => {
+    if (rank === 1) {
+      return { label: 'Champion', tone: 'bg-[#ffd166]/20 border-[#ffd166]/50 text-[#ffd166]' }
+    }
+    if (rank === 2) {
+      return { label: 'Runner-Up', tone: 'bg-white/10 border-white/30 text-white/80' }
+    }
+    if (rank === 3) {
+      return { label: 'Top 3', tone: 'bg-[#c77dff]/20 border-[#c77dff]/50 text-[#c77dff]' }
+    }
+    return null
+  }
+
   useEffect(() => {
     const you = ranked.find((leader) => leader.isYou)
     if (!you) return
@@ -133,6 +146,16 @@ const Leaderboard = () => {
               </div>
             </div>
             <div className="text-right">
+              {getRankBadge(leader.rank) && (
+                <div
+                  className={`mb-2 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.25em] ${getRankBadge(leader.rank).tone}`}
+                >
+                  <span>
+                    {leader.rank === 1 ? '🏆' : leader.rank === 2 ? '🥈' : '🥉'}
+                  </span>
+                  {getRankBadge(leader.rank).label}
+                </div>
+              )}
               <p className="text-xs uppercase tracking-[0.3em] text-white/60">Area</p>
               <p className="mt-1 text-lg font-semibold text-neonBlue">
                 {formatAreaMeters(leader.totalArea || 0)}

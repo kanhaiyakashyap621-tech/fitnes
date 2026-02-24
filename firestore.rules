@@ -26,6 +26,10 @@ service cloud.firestore {
       return !data.keys().hasAny([field]) || data[field] is string;
     }
 
+    function optionalNonNegativeNumber(data, field) {
+      return !data.keys().hasAny([field]) || isNonNegativeNumber(data[field]);
+    }
+
     function userDoc() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid));
     }
@@ -65,6 +69,7 @@ service cloud.firestore {
         'totalDistance',
         'totalArea',
         'totalCaptures',
+        'expPoints',
         'avatarUrl',
         'earnedBadges',
         'fcmTokens',
@@ -74,6 +79,7 @@ service cloud.firestore {
       && data.username is string
       && data.email is string
       && optionalString(data, 'avatarUrl')
+      && optionalNonNegativeNumber(data, 'expPoints')
       && isNonNegativeNumber(data.totalDistance)
       && isNonNegativeNumber(data.totalArea)
       && isNonNegativeInt(data.totalCaptures)

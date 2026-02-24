@@ -66,7 +66,7 @@ const Dashboard = () => {
         </button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <GlassCard>
           <p className="text-xs uppercase tracking-[0.3em] text-white/60">Total Distance</p>
           <p className="mt-3 text-2xl font-semibold text-neonGreen">
@@ -83,6 +83,12 @@ const Dashboard = () => {
           <p className="text-xs uppercase tracking-[0.3em] text-white/60">Total Captures</p>
           <p className="mt-3 text-2xl font-semibold text-white">
             {profile?.totalCaptures || 0}
+          </p>
+        </GlassCard>
+        <GlassCard>
+          <p className="text-xs uppercase tracking-[0.3em] text-white/60">EXP Points</p>
+          <p className="mt-3 text-2xl font-semibold text-neonGreen">
+            {profile?.expPoints || 0}
           </p>
         </GlassCard>
       </div>
