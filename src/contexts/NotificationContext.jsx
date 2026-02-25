@@ -83,7 +83,7 @@ export const NotificationProvider = ({ children }) => {
     } else if (result === 'denied') {
       addToast({
         title: 'Notifications blocked',
-        message: 'Enable notifications in your browser settings to receive Runner alerts.',
+        message: 'Enable notifications in your browser settings to receive Athletes Arena alerts.',
         tone: 'warning',
       })
     }
@@ -96,8 +96,8 @@ export const NotificationProvider = ({ children }) => {
       try {
         new Notification(title, {
           body,
-          icon: '/vite.svg',
-          tag: `runner-${title}`,
+          icon: '/logo.png',
+          tag: `athletes-arena-${title}`,
         })
       } catch {
         // Ignore notification errors silently
@@ -110,7 +110,7 @@ export const NotificationProvider = ({ children }) => {
     if (!messagingSupported || permission !== 'granted' || !user) return undefined
     const messaging = getMessaging(app)
     const unsubscribe = onMessage(messaging, (payload) => {
-      const title = payload.notification?.title || 'Runner update'
+      const title = payload.notification?.title || 'Athletes Arena update'
       const body = payload.notification?.body || payload.data?.body || ''
       addToast({
         title,

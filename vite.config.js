@@ -11,8 +11,8 @@ export default defineConfig({
       manifestFilename: 'manifest.json',
       includeAssets: ['offline.html', 'icons/icon-192.png', 'icons/icon-512.png'],
       manifest: {
-        name: 'Runner',
-        short_name: 'Runner',
+        name: 'Athletes Arena',
+        short_name: 'Athletes Arena',
         description: 'Capture territory, track runs, and compete in live rooms.',
         start_url: '/',
         scope: '/',

@@ -102,7 +102,7 @@ const Leaderboard = () => {
         tone: improved ? 'success' : 'warning',
       })
       showLocalNotification({
-        title: 'Runner rank update',
+        title: 'Athletes Arena rank update',
         body: message,
       })
     }

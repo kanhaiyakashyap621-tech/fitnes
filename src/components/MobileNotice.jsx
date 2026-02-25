@@ -7,7 +7,7 @@ const MobileNotice = () => {
 
   return (
     <div className="mobile-warning">
-      Runner works best on mobile devices.
+      Athletes Arena works best on mobile devices.
     </div>
   )
 }

@@ -28,7 +28,7 @@ export const ToastProvider = ({ children }) => {
       const id = toast.id ?? createId()
       const payload = {
         id,
-        title: toast.title || 'Runner',
+        title: toast.title || 'Athletes Arena',
         message: toast.message || '',
         tone: toast.tone || 'default',
         icon: toast.icon || '',

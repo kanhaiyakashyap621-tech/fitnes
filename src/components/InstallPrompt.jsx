@@ -37,9 +37,11 @@ const InstallPrompt = () => {
     <div className="install-banner">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-neonGreen">Install Runner</p>
+          <p className="text-xs uppercase tracking-[0.3em] text-neonGreen">
+            Install Athletes Arena
+          </p>
           <p className="mt-1 text-sm text-white/70">
-            Add Runner to your home screen for a full-screen experience.
+            Add Athletes Arena to your home screen for a full-screen experience.
           </p>
         </div>
         <button

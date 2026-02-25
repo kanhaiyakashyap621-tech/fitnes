@@ -27,8 +27,8 @@ const AppShell = ({ children }) => {
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0b1423]/90 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.4em] text-neonBlue">Runner</p>
-            <p className="text-sm text-white/70">{profile?.username || 'Anonymous Runner'}</p>
+            <p className="text-xs uppercase tracking-[0.4em] text-neonBlue">Athletes Arena</p>
+            <p className="text-sm text-white/70">{profile?.username || 'Anonymous Athlete'}</p>
             <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-white/60">
               <span className={inRoom ? 'text-neonGreen' : 'text-neonBlue'}>
                 {inRoom ? 'Room Mode' : 'Global Mode'}

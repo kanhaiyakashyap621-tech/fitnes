@@ -131,7 +131,7 @@ const Profile = () => {
     <div className="flex flex-1 flex-col gap-6 px-4 pb-28 pt-6">
       <div className="space-y-2">
         <p className="text-xs uppercase tracking-[0.3em] text-neonBlue">Profile</p>
-        <h1 className="text-2xl font-semibold text-white">Manage your Runner identity</h1>
+        <h1 className="text-2xl font-semibold text-white">Manage your Athletes Arena identity</h1>
         <p className="text-sm text-white/70">Update your username and review your stats.</p>
       </div>
 
@@ -285,7 +285,7 @@ const Profile = () => {
                   <div>
                     <p className="text-sm font-semibold text-white">{badge.name || 'Badge'}</p>
                     <p className="mt-1 text-xs text-white/60">
-                      {badge.description || 'Unlock by reaching a Runner milestone.'}
+                      {badge.description || 'Unlock by reaching an Athletes Arena milestone.'}
                     </p>
                   </div>
                 </div>

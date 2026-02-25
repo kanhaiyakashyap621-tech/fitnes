@@ -14,11 +14,11 @@ firebase.initializeApp({
 const messaging = firebase.messaging()
 
 messaging.onBackgroundMessage((payload) => {
-  const title = payload.notification?.title || 'Runner update'
+  const title = payload.notification?.title || 'Athletes Arena update'
   const body = payload.notification?.body || payload.data?.body || ''
 
   self.registration.showNotification(title, {
     body,
-    icon: '/vite.svg',
+    icon: '/logo.png',
   })
 })

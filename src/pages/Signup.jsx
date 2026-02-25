@@ -26,10 +26,10 @@ const Signup = () => {
   return (
     <div className="flex min-h-screen items-center justify-center bg-night bg-aurora px-4">
       <div className="glass-card w-full max-w-md rounded-3xl p-8 shadow-glow">
-        <p className="text-xs uppercase tracking-[0.35em] text-neonBlue">Runner</p>
+        <p className="text-xs uppercase tracking-[0.35em] text-neonBlue">Athletes Arena</p>
         <h1 className="mt-2 text-3xl font-semibold text-white">Join the chase</h1>
         <p className="mt-2 text-sm text-white/70">
-          Create your Runner identity to start capturing territory.
+          Create your Athletes Arena identity to start capturing territory.
         </p>
         <form className="mt-6 space-y-4" onSubmit={onSubmit}>
           <label className="block text-sm text-white/70">
@@ -77,7 +77,7 @@ const Signup = () => {
           </button>
         </form>
         <p className="mt-6 text-center text-sm text-white/70">
-          Already a Runner?{' '}
+          Already with Athletes Arena?{' '}
           <Link className="text-neonBlue hover:text-neonGreen" to="/login">
             Log in
           </Link>

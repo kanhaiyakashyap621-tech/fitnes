@@ -79,7 +79,9 @@ const Notifications = () => {
                   {item.icon || '🔔'}
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-semibold text-white">{item.title || 'Runner'}</p>
+                  <p className="text-sm font-semibold text-white">
+                    {item.title || 'Athletes Arena'}
+                  </p>
                   {item.message && <p className="text-xs text-white/70">{item.message}</p>}
                   <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-white/40">
                     {createdAt ? createdAt.toLocaleString() : 'Just now'}

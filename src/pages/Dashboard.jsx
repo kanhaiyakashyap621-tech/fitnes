@@ -31,7 +31,9 @@ const Dashboard = () => {
     <div className="flex flex-1 flex-col gap-6 px-4 pb-28 pt-8">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-2">
-          <p className="text-xs uppercase tracking-[0.3em] text-neonBlue">Runner Control</p>
+          <p className="text-xs uppercase tracking-[0.3em] text-neonBlue">
+            Athletes Arena Control
+          </p>
           <h1 className="text-3xl font-semibold text-white">
             Welcome back{profile?.username ? `, ${profile.username}` : ''}.
           </h1>

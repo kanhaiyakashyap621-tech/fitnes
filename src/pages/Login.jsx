@@ -26,7 +26,7 @@ const Login = () => {
   return (
     <div className="flex min-h-screen items-center justify-center bg-night bg-aurora px-4">
       <div className="glass-card w-full max-w-md rounded-3xl p-8 shadow-glow">
-        <p className="text-xs uppercase tracking-[0.35em] text-neonBlue">Runner</p>
+        <p className="text-xs uppercase tracking-[0.35em] text-neonBlue">Athletes Arena</p>
         <h1 className="mt-2 text-3xl font-semibold text-white">Welcome back</h1>
         <p className="mt-2 text-sm text-white/70">
           Sign in to keep capturing territory with your squad.
