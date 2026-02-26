@@ -44,24 +44,6 @@ const normalizePoints = (rawPoints = []) =>
     })
     .filter(Boolean)
 
-const FitTerritories = ({ territories }) => {
-  const map = useMap()
-
-  useEffect(() => {
-    if (!territories.length) return
-    const bounds = territories.reduce((acc, territory) => {
-      const points = territory.normalizedCoordinates || normalizePoints(territory.coordinates || [])
-      points.forEach((point) => acc.push([point.lat, point.lng]))
-      return acc
-    }, [])
-    if (bounds.length) {
-      map.fitBounds(bounds, { padding: [30, 30] })
-    }
-  }, [map, territories])
-
-  return null
-}
-
 const FollowUser = ({ position, enabled, throttleMs = 3000 }) => {
   const map = useMap()
   const lastFlyRef = useRef(0)
@@ -508,7 +490,6 @@ const SharedMap = () => {
               username={profile?.username || user?.displayName || 'You'}
             />
           )}
-          <FitTerritories territories={coloredTerritories} />
           <TerritoryLayer territories={coloredTerritories} />
           {liveRunners.map((runner) => (
             <LiveRunnerMarker
